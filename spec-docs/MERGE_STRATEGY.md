@@ -1,561 +1,636 @@
-# OKR Best Desktop Git 병합 전략 가이드
+# OKR Best 병합 전략 가이드
 
-> 팀원들이 안전하고 일관되게 사용할 수 있는 Git 브랜치 병합 전략입니다.
+> 원본 오픈소스(Mattermost) 추적과 선형 히스토리 유지를 동시에 달성하는 Git 병합 전략
 
 ---
 
 ## 목차
 
-1. [기본 원칙](#1-기본-원칙)
-2. [일반적인 워크플로우](#2-일반적인-워크플로우)
-3. [상황별 가이드](#3-상황별-가이드)
-4. [충돌 해결](#4-충돌-해결)
-5. [주의사항 및 모범 사례](#5-주의사항-및-모범-사례)
-6. [자주 묻는 질문](#6-자주-묻는-질문)
+1. [개요](#1-개요)
+2. [브랜치 구조](#2-브랜치-구조)
+3. [병합 전략](#3-병합-전략)
+4. [Upstream 동기화](#4-upstream-동기화)
+5. [Patch-ID 기반 추적](#5-patch-id-기반-추적)
+6. [실용 워크플로우](#6-실용-워크플로우)
+7. [GitHub/GitLab 설정](#7-githubgitlab-설정)
+8. [문제 해결](#8-문제-해결)
 
 ---
 
-## 1. 기본 원칙
+## 1. 개요
 
-### 1.1 팀 전략: 안전성 우선
+### 1.1 요구사항
 
-**핵심 원칙**:
-- ✅ **안전성**: 작업 손실 방지
-- ✅ **일관성**: 모든 팀원이 동일한 방식 사용
-- ✅ **추적 가능성**: 언제 무엇이 병합되었는지 명확
+| 요구사항 | 설명 |
+|----------|------|
+| **선형 히스토리** | 머지 커밋 없이 개별 작업 커밋만 유지 |
+| **Upstream 추적** | 원본 오픈소스(Mattermost) 변경 추적 가능 |
+| **깔끔한 히스토리** | 각 커밋이 논리적 단위로 구성 |
 
-### 1.2 권장 병합 전략
+### 1.2 핵심 딜레마
 
-| 상황 | 전략 | 이유 |
-|------|------|------|
-| **개인 브랜치에 master 반영** | **Merge** | 가장 안전, 히스토리 보존 |
-| **PR 병합 (GitHub)** | **Rebase and Merge** | 깔끔한 히스토리 (GitHub 자동 처리) |
-| **공유 브랜치** | **Merge만 사용** | Rebase 절대 금지 |
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    병합 전략 딜레마                          │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  방법              │ 선형 히스토리 │ Upstream 추적           │
+│  ─────────────────────────────────────────────────────────  │
+│  Merge Commit      │     ✗        │      ✓ (해시 유지)      │
+│  Rebase & Merge    │     ✓        │      ✗ (해시 변경)      │
+│  Squash Merge      │     ✓        │      ✗ (커밋 손실)      │
+│                                                             │
+│  해결책: Rebase + Patch-ID 기반 추적                        │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
 
-### 1.3 절대 하지 말아야 할 것
+### 1.3 해결 전략 요약
 
-- ❌ **공유 브랜치에서 Rebase 사용 금지**
-- ❌ **Force push를 남용하지 않기**
-- ❌ **master 브랜치에 직접 푸시 금지**
+- **기능 브랜치 → master**: Rebase and Merge (선형 유지)
+- **upstream → master**: Cherry-pick -x (메타데이터 보존)
+- **Upstream 추적**: Patch-ID 기반 비교 (`git cherry`)
 
 ---
 
-## 2. 일반적인 워크플로우
+## 2. 브랜치 구조
 
-### 2.1 새 기능 개발 시작
+### 2.1 브랜치 역할
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      브랜치 구조                             │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  upstream/master (Mattermost 원본, remote)                  │
+│  ──●──●──●──●──●──●──►                                      │
+│     A  B  C  D  E  F                                        │
+│              │                                              │
+│              │ git fetch upstream                           │
+│              ▼                                              │
+│  upstream-master (동기화 추적용, local)                      │
+│  ──●──●──●──●─────────►                                     │
+│     A  B  C  D   (원본 해시 그대로 유지)                     │
+│              │                                              │
+│              │ git cherry-pick -x                           │
+│              ▼                                              │
+│  master (OKR Best 메인)                                     │
+│  ──●──●──●──●'─●──●──►                                      │
+│     X  Y  Z  D' a' b'  (선형 히스토리)                       │
+│              ▲                                              │
+│              │ rebase and merge                             │
+│              │                                              │
+│  feature/xxx (기능 개발)                                    │
+│       └──●──●                                               │
+│          a  b                                               │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 2.2 브랜치 설명
+
+| 브랜치 | 유형 | 용도 | 관리 방식 |
+|--------|------|------|-----------|
+| `upstream/master` | Remote | Mattermost 원본 | 읽기 전용 |
+| `upstream-master` | Local | Upstream 동기화 추적 | Fast-forward only |
+| `master` | Local/Remote | OKR Best 메인 개발 | 선형 유지 |
+| `feature/*` | Local | 기능 개발 | → master로 rebase |
+| `hotfix/*` | Local | 긴급 수정 | → master로 rebase |
+
+### 2.3 초기 설정
 
 ```bash
-# 1. master 브랜치 최신 상태로 업데이트
+# 1. Upstream remote 추가
+git remote add upstream https://github.com/mattermost/desktop.git
+
+# 2. upstream-master 브랜치 생성 (현재 upstream 기준)
+git fetch upstream
+git checkout -b upstream-master upstream/master
+
+# 3. 초기 동기화 지점 태그
+git tag upstream-sync-init
+
+# 4. master 브랜치로 돌아가기
 git checkout master
-git fetch upstream
-git merge upstream/master
-git push origin master
-
-# 2. 새 브랜치 생성
-git checkout -b feature/my-feature-name
-
-# 3. 작업 시작
-# ... 코드 작성 ...
 ```
-
-**브랜치 네이밍 규칙**:
-- `feature/기능명`
-- `fix/버그명`
-- `docs/문서명`
-- 예: `feature/okrbest-rebrand`, `fix/login-bug`
-
-### 2.2 작업 중 master 변경사항 반영 (권장 방법)
-
-**상황**: master에 다른 PR이 머지되어 최신 코드를 반영해야 함
-
-```bash
-# 1. 최신 변경사항 가져오기
-git fetch upstream
-
-# 2. 개인 브랜치로 전환 (이미 있는 경우)
-git checkout feature/my-feature-name
-
-# 3. master를 개인 브랜치에 병합 (Merge 사용)
-git merge upstream/master
-
-# 4. 충돌 없으면 자동 완료
-# 충돌 있으면 해결 (아래 "충돌 해결" 섹션 참조)
-
-# 5. 테스트 후 푸시
-npm test  # 또는 프로젝트의 테스트 명령어
-git push origin feature/my-feature-name
-```
-
-**결과**:
-- 병합 커밋 생성: `"Merge branch 'master' into feature/my-feature-name"`
-- 이 커밋은 PR에 포함되지만, GitHub에서 "Rebase and Merge"로 병합하면 최종적으로 깔끔해짐
-
-### 2.3 작업 완료 후 PR 생성
-
-```bash
-# 1. 최종 확인
-git status
-git log --oneline -10
-
-# 2. 푸시
-git push origin feature/my-feature-name
-
-# 3. GitHub에서 Pull Request 생성
-# - Base: master
-# - Compare: feature/my-feature-name
-```
-
-### 2.4 PR 병합 (GitHub에서)
-
-**권장 방법**: **"Rebase and Merge"** 선택
-
-- ✅ 깔끔한 선형 히스토리
-- ✅ PR 번호가 커밋 메시지에 포함
-- ✅ GitHub가 자동으로 처리
-
-**다른 옵션**:
-- "Create a merge commit": 병합 커밋 생성 (히스토리 복잡해짐)
-- "Squash and merge": 모든 커밋을 하나로 합침 (개별 커밋 히스토리 손실)
 
 ---
 
-## 3. 상황별 가이드
+## 3. 병합 전략
 
-### 3.1 상황 A: 작업 시작 전 master 업데이트
+### 3.1 기능 브랜치 → master
 
-```bash
-# master 브랜치로 전환
-git checkout master
-
-# upstream 최신 상태 가져오기
-git fetch upstream
-
-# upstream/master를 로컬 master에 병합
-git merge upstream/master
-
-# origin에 푸시
-git push origin master
-
-# 이제 새 브랜치 생성
-git checkout -b feature/new-feature
-```
-
-### 3.2 상황 B: 작업 중 master 변경사항 반영
-
-**권장 방법: Merge 사용**
+**방식: Rebase and Merge**
 
 ```bash
-# 개인 브랜치에서
-git fetch upstream
-git merge upstream/master
+# 로컬에서 수행
+git checkout feature/new-feature
+git fetch origin master
+git rebase origin/master
 
 # 충돌 해결 후
-git push origin feature/my-feature
+git checkout master
+git merge --ff-only feature/new-feature
+git push origin master
+
+# 브랜치 정리
+git branch -d feature/new-feature
 ```
 
-**대안: Rebase 사용 (고급, 주의 필요)**
+**GitHub PR 설정:**
+- "Rebase and merge" 버튼 사용
+- 또는 "Squash and merge" (하나의 논리적 커밋으로)
 
-```bash
-# 개인 브랜치에서
-git fetch upstream
-git rebase upstream/master
+### 3.2 병합 규칙
 
-# 충돌 해결 (각 커밋마다 발생 가능)
-git add .
-git rebase --continue
+| 상황 | 병합 방식 | 이유 |
+|------|-----------|------|
+| 기능 브랜치 (커밋 1-2개) | Rebase and Merge | 커밋별 추적 용이 |
+| 기능 브랜치 (커밋 다수) | Squash and Merge | 깔끔한 히스토리 |
+| Hotfix | Rebase and Merge | 빠른 반영 |
+| Upstream 변경 | Cherry-pick -x | 원본 추적 |
 
-# Force push (주의!)
-git push origin feature/my-feature --force-with-lease
+### 3.3 커밋 메시지 규칙
+
+```
+<type>: <subject>
+
+<body>
+
+<footer>
 ```
 
-**언제 Rebase를 사용하나요?**
-- ✅ 개인 브랜치일 때만
-- ✅ 다른 사람이 사용하지 않는 브랜치일 때만
-- ✅ 선형 히스토리를 원할 때
-
-**언제 Rebase를 사용하지 않나요?**
-- ❌ 다른 사람과 공유하는 브랜치
-- ❌ 이미 PR이 생성된 브랜치 (팀과 협의 후)
-- ❌ 불확실할 때는 Merge 사용
-
-### 3.3 상황 C: 여러 개인 브랜치 관리
-
-```bash
-# 브랜치 A에서 작업 중
-git checkout feature/branch-a
-# ... 작업 ...
-
-# 브랜치 B로 전환하여 작업
-git checkout feature/branch-b
-# ... 작업 ...
-
-# 브랜치 A에 master 반영
-git checkout feature/branch-a
-git fetch upstream
-git merge upstream/master
-
-# 브랜치 B에 master 반영
-git checkout feature/branch-b
-git fetch upstream
-git merge upstream/master
-```
-
-### 3.4 상황 D: PR 전 브랜치 정리 (선택사항)
-
-**병합 커밋을 제거하고 싶을 때**:
-
-```bash
-# PR 전에 rebase로 정리
-git fetch upstream
-git rebase upstream/master
-
-# Force push (주의!)
-git push origin feature/my-feature --force-with-lease
-```
-
-**주의**: 이미 PR이 생성되어 있고 다른 사람이 리뷰 중이면 팀과 협의 필요
+**타입:**
+- `feat`: 새 기능
+- `fix`: 버그 수정
+- `docs`: 문서
+- `refactor`: 리팩토링
+- `chore`: 빌드, 설정 변경
+- `upstream`: Upstream에서 가져온 변경
 
 ---
 
-## 4. 충돌 해결
+## 4. Upstream 동기화
 
-### 4.1 충돌 발생 시
+### 4.1 동기화 프로세스
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  Upstream 동기화 프로세스                    │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  Step 1: Upstream 최신화                                    │
+│  ────────────────────────                                   │
+│  $ git fetch upstream                                       │
+│                                                             │
+│  Step 2: upstream-master 업데이트                           │
+│  ──────────────────────────────────                         │
+│  $ git checkout upstream-master                             │
+│  $ git merge --ff-only upstream/master                      │
+│  $ git tag upstream-sync-v6.2.0  # 버전 태그               │
+│                                                             │
+│  Step 3: 가져올 커밋 확인 (Patch-ID 기반)                   │
+│  ────────────────────────────────────────                   │
+│  $ git cherry -v master upstream-master                     │
+│  # + 표시된 커밋만 가져와야 함                               │
+│                                                             │
+│  Step 4: Cherry-pick으로 반영                               │
+│  ───────────────────────────────                            │
+│  $ git checkout master                                      │
+│  $ git cherry-pick -x <commit-hash>                         │
+│                                                             │
+│  Step 5: 동기화 완료 태그                                   │
+│  ─────────────────────────                                  │
+│  $ git tag okrbest-sync-v6.2.0                             │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 4.2 Cherry-pick 옵션
 
 ```bash
-# Merge 또는 Rebase 중 충돌 발생
-# Git이 자동으로 충돌 파일 표시
+# 단일 커밋 (원본 해시 기록)
+git cherry-pick -x <commit-hash>
 
-# 1. 충돌 파일 확인
+# 여러 커밋 (범위)
+git cherry-pick -x <start-hash>^..<end-hash>
+
+# 충돌 시 계속
+git cherry-pick --continue
+
+# 중단
+git cherry-pick --abort
+```
+
+### 4.3 Cherry-pick -x 결과
+
+```
+commit 7a8b9c0d (HEAD -> master)
+Author: Mattermost Dev <dev@mattermost.com>
+Date:   Mon Jan 6 2025
+
+    fix: 알림 중복 표시 버그 수정
+    
+    알림이 여러 번 표시되는 문제를 해결합니다.
+    
+    (cherry picked from commit abc123def456789)
+    ↑ 이 정보로 원본 커밋 추적 가능
+```
+
+### 4.4 동기화 주기
+
+| 유형 | 주기 | 대상 |
+|------|------|------|
+| **정기 동기화** | 월 1회 | 모든 변경 검토 |
+| **보안 패치** | 즉시 | 보안 관련 커밋만 |
+| **주요 버전** | 릴리스 시 | 특정 버전 태그 기준 |
+
+---
+
+## 5. Patch-ID 기반 추적
+
+### 5.1 Patch-ID란?
+
+Git은 각 커밋의 변경 내용(diff)에 대해 고유한 Patch-ID를 계산합니다. **커밋 해시가 달라도 동일한 변경이면 같은 Patch-ID를 가집니다.**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Patch-ID 비교 원리                        │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  Commit A (upstream-master)                                 │
+│  ┌────────────────────────────┐                            │
+│  │ Hash: abc123               │                            │
+│  │ Author: upstream-dev       │                            │
+│  │ Date: 2024-01-01           │                            │
+│  │                            │                            │
+│  │ Diff:                      │ ──► Patch-ID: xyz789       │
+│  │   - old code               │     (diff 내용만 해시)      │
+│  │   + new code               │                            │
+│  └────────────────────────────┘                            │
+│                                                             │
+│  Commit A' (master, cherry-picked)                         │
+│  ┌────────────────────────────┐                            │
+│  │ Hash: def456 (다름!)       │                            │
+│  │ Author: upstream-dev       │                            │
+│  │ Date: 2024-01-05 (다름!)   │                            │
+│  │                            │                            │
+│  │ Diff:                      │ ──► Patch-ID: xyz789       │
+│  │   - old code               │     (동일!)                 │
+│  │   + new code               │                            │
+│  └────────────────────────────┘                            │
+│                                                             │
+│  결과: git cherry는 이 두 커밋을 "동일"하다고 판단           │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 5.2 추적 명령어
+
+#### `git cherry` - 가져올 커밋 확인
+
+```bash
+git cherry -v master upstream-master
+```
+
+**출력:**
+```
+- abc123 fix: 이미 master에 있음 (스킵)
+- def456 feat: 이미 master에 있음 (스킵)
++ 789abc feat: 새로 가져와야 함
++ 012def fix: 새로 가져와야 함
+```
+
+| 기호 | 의미 |
+|------|------|
+| `-` | master에 **이미 반영됨** (Patch-ID 일치) |
+| `+` | master에 **없음** (가져와야 함) |
+
+#### `git log --cherry-pick` - 중복 제외 로그
+
+```bash
+# 가져와야 할 커밋만 표시
+git log --cherry-pick --oneline upstream-master ^master
+```
+
+#### `git log --cherry-mark` - 상태 표시 로그
+
+```bash
+# 모든 커밋을 보되, 동일 여부 표시
+git log --cherry-mark --oneline upstream-master ^master
+```
+
+**출력:**
+```
+= abc123 fix: 이미 있음 (Patch-ID 일치)
+= def456 feat: 이미 있음 (Patch-ID 일치)
++ 789abc feat: 새 커밋
++ 012def fix: 새 커밋
+```
+
+### 5.3 Patch-ID 한계
+
+| 상황 | Patch-ID 결과 | 해결 방법 |
+|------|---------------|-----------|
+| 동일한 변경 | 일치 ✓ | 자동 인식 |
+| 충돌 해결 시 수정 | 불일치 ✗ | 커밋 메시지에 원본 명시 |
+| 컨텍스트 변경 | 불일치 ✗ | 수동 추적 |
+| 백포트 시 코드 조정 | 불일치 ✗ | 커밋 메시지에 원본 명시 |
+
+---
+
+## 6. 실용 워크플로우
+
+### 6.1 동기화 스크립트
+
+```bash
+#!/bin/bash
+# scripts/sync-upstream.sh
+
+set -e
+
+echo "=== OKR Best Upstream 동기화 ==="
+echo ""
+
+# 1. Upstream 최신화
+echo "📥 Upstream 가져오는 중..."
+git fetch upstream
+
+# 2. upstream-master 업데이트
+echo "🔄 upstream-master 업데이트 중..."
+git checkout upstream-master
+git merge --ff-only upstream/master
+
+# 3. 가져와야 할 커밋 확인
+echo ""
+echo "📋 master에 반영해야 할 커밋들:"
+echo "────────────────────────────────"
+git cherry -v master upstream-master | grep "^+" || echo "(없음)"
+
+# 4. 개수 표시
+NEW_COMMITS=$(git cherry master upstream-master | grep -c "^+" || echo "0")
+echo ""
+echo "────────────────────────────────"
+echo "총 ${NEW_COMMITS}개의 새 커밋이 있습니다."
+
+# 5. master로 돌아가기
+git checkout master
+
+if [ "$NEW_COMMITS" -gt 0 ]; then
+    echo ""
+    echo "💡 cherry-pick 명령어:"
+    echo "   git cherry-pick -x <commit-hash>"
+    echo ""
+    echo "💡 전체 반영 (주의해서 사용):"
+    echo "   git cherry master upstream-master | grep '^+' | cut -d' ' -f2 | xargs git cherry-pick -x"
+fi
+```
+
+### 6.2 일반적인 작업 흐름
+
+#### 기능 개발
+
+```bash
+# 1. 기능 브랜치 생성
+git checkout master
+git pull origin master
+git checkout -b feature/new-okr-widget
+
+# 2. 개발 및 커밋
+git add .
+git commit -m "feat: OKR 위젯 추가"
+
+# 3. master 최신화 및 rebase
+git fetch origin master
+git rebase origin/master
+
+# 4. PR 생성 또는 직접 병합
+git checkout master
+git merge --ff-only feature/new-okr-widget
+git push origin master
+
+# 5. 브랜치 정리
+git branch -d feature/new-okr-widget
+```
+
+#### Upstream 동기화
+
+```bash
+# 1. 동기화 확인
+./scripts/sync-upstream.sh
+
+# 2. 필요한 커밋 cherry-pick
+git cherry-pick -x abc123
+git cherry-pick -x def456
+
+# 3. 동기화 완료 태그
+git tag okrbest-sync-$(date +%Y%m%d)
+
+# 4. 푸시
+git push origin master --tags
+```
+
+### 6.3 충돌 해결
+
+```bash
+# Cherry-pick 중 충돌 발생
+git cherry-pick -x abc123
+
+# 충돌 파일 확인
 git status
 
-# 2. 충돌 파일 열기
-# <<<<<<< HEAD
-# 내 변경사항
-# =======
-# master의 변경사항
-# >>>>>>> upstream/master
+# 충돌 해결 후
+git add <resolved-files>
+git cherry-pick --continue
 
-# 3. 충돌 해결
-# - 필요한 코드만 남기기
-# - 두 변경사항 모두 필요하면 합치기
-# - 충돌 마커 제거 (<<<<<<<, =======, >>>>>>>)
-
-# 4. 해결된 파일 스테이징
-git add <resolved-file>
-
-# 5. 병합 완료
-# Merge의 경우:
-git commit -m "Merge upstream/master into feature/my-feature"
-
-# Rebase의 경우:
-git rebase --continue
-```
-
-### 4.2 충돌 해결 팁
-
-1. **IDE 도구 활용**: VS Code, IntelliJ 등은 시각적 병합 도구 제공
-2. **작은 단위로 병합**: 자주 master를 병합하여 충돌 범위 최소화
-3. **팀원과 협의**: 복잡한 충돌은 팀원과 논의
-
-### 4.3 충돌 해결 취소
-
-```bash
-# Merge 취소 (아직 커밋 전)
-git merge --abort
-
-# Rebase 취소
-git rebase --abort
+# 커밋 메시지 수정 (충돌 해결 내용 명시)
+# ---
+# fix: 버그 수정
+#
+# Backported from upstream with conflict resolution.
+# Original commit: abc123def456
+# Conflicts resolved in: src/main/app.ts
+#
+# (cherry picked from commit abc123def456)
+# ---
 ```
 
 ---
 
-## 5. 주의사항 및 모범 사례
+## 7. GitHub/GitLab 설정
 
-### 5.1 안전한 작업 습관
+### 7.1 Branch Protection Rules (GitHub)
 
-#### ✅ 권장 사항
-
-1. **작업 전 항상 최신 상태 확인**
-   ```bash
-   git fetch upstream
-   git status
-   ```
-
-2. **작은 단위로 자주 커밋**
-   - 의미 있는 단위로 커밋
-   - 자주 master와 병합하여 충돌 최소화
-
-3. **푸시 전 테스트**
-   ```bash
-   npm test
-   git push
-   ```
-
-4. **명확한 커밋 메시지**
-   ```
-   [MM-12345] Add feature description
-   Fix: resolve login issue
-   Docs: update README
-   ```
-
-#### ❌ 피해야 할 것
-
-1. **Force push 남용**
-   - `--force-with-lease` 사용 (더 안전)
-   - 공유 브랜치에서는 절대 사용 금지
-
-2. **master에 직접 작업**
-   - 항상 브랜치를 만들어서 작업
-
-3. **충돌 무시**
-   - 충돌을 제대로 해결하지 않고 커밋하지 않기
-
-### 5.2 커밋 메시지 규칙
-
-**형식**:
-```
-[이슈번호] 간단한 설명
-
-상세 설명 (선택사항)
+```yaml
+# master 브랜치 보호 규칙
+master:
+  # 필수 설정
+  - Require pull request reviews before merging: true
+  - Require status checks to pass: true
+  - Require linear history: true  # 핵심!
+  
+  # 병합 방식
+  - Allow merge commits: false    # 비활성화!
+  - Allow squash merging: true
+  - Allow rebase merging: true    # 권장
 ```
 
-**예시**:
+### 7.2 Merge Request Settings (GitLab)
+
+```yaml
+# 프로젝트 설정 > Merge Requests
+merge_method: "ff"  # Fast-forward merge
+squash_option: "default_on"  # 기본적으로 squash
 ```
-[OKR-123] Add OKR Best branding to settings page
 
-- Replace Mattermost logo with OKR Best logo
-- Update color scheme
-- Add new icon assets
-```
+### 7.3 PR 템플릿
 
-### 5.3 브랜치 관리
+```markdown
+## 변경 사항
 
-**브랜치 정리**:
-```bash
-# 머지된 브랜치 삭제
-git branch -d feature/merged-feature
+<!-- 변경 내용을 설명해주세요 -->
 
-# 원격 브랜치 삭제
-git push origin --delete feature/merged-feature
+## 변경 유형
 
-# 로컬에서 삭제된 원격 브랜치 정리
-git fetch --prune
+- [ ] 새 기능 (feat)
+- [ ] 버그 수정 (fix)
+- [ ] 문서 (docs)
+- [ ] 리팩토링 (refactor)
+- [ ] Upstream 동기화 (upstream)
+
+## Upstream 관련 (해당 시)
+
+- [ ] 이 PR은 upstream 변경을 포함합니다
+- 원본 커밋: <!-- abc123 -->
+- Upstream 버전: <!-- v6.2.0 -->
+
+## 체크리스트
+
+- [ ] 코드 스타일 준수
+- [ ] 테스트 통과
+- [ ] 문서 업데이트 (필요시)
 ```
 
 ---
 
-## 6. 자주 묻는 질문
+## 8. 문제 해결
 
-### Q1: 개인 브랜치에 master를 수시로 merge하면 병합 커밋이 많이 생기는데 괜찮나요?
+### 8.1 자주 발생하는 문제
 
-**A**: 네, 괜찮습니다.
-- 병합 커밋이 있어도 기능적으로 문제없음
-- GitHub PR에서 "Rebase and Merge"로 병합하면 최종적으로 깔끔해짐
-- 안전성이 더 중요함
+#### Q: Cherry-pick 후에도 `git cherry`에서 + 표시됨
 
-**대안**: Rebase 사용 (개인 브랜치일 때만)
-```bash
-git rebase upstream/master
-```
-
-### Q2: Rebase와 Merge 중 어떤 것을 사용해야 하나요?
-
-**A**: 상황에 따라 다릅니다.
-
-| 상황 | 권장 방법 |
-|------|----------|
-| 개인 브랜치에 master 반영 | **Merge** (안전) |
-| PR 병합 (GitHub) | **Rebase and Merge** (GitHub 자동) |
-| 공유 브랜치 | **Merge만 사용** |
-
-**원칙**: 불확실하면 **Merge 사용**
-
-### Q3: Force push를 해도 되나요?
-
-**A**: 조건부로 가능합니다.
-
-**가능한 경우**:
-- ✅ 개인 브랜치일 때
-- ✅ 다른 사람이 사용하지 않는 브랜치
-- ✅ `--force-with-lease` 사용
-
-**불가능한 경우**:
-- ❌ master 브랜치
-- ❌ 다른 사람과 공유하는 브랜치
-- ❌ 이미 PR이 생성되어 리뷰 중인 브랜치 (팀 협의 필요)
-
-### Q4: 충돌이 너무 복잡한데 어떻게 하나요?
-
-**A**: 다음 순서로 진행하세요.
-
-1. **작은 단위로 나누기**: 큰 충돌을 여러 작은 충돌로 분리
-2. **팀원과 협의**: 복잡한 충돌은 팀원과 논의
-3. **IDE 도구 활용**: VS Code, IntelliJ 등의 병합 도구 사용
-4. **백업**: 복잡한 충돌 해결 전 브랜치 백업
-   ```bash
-   git branch backup/feature-name
-   ```
-
-### Q5: PR 전에 브랜치를 정리해야 하나요?
-
-**A**: 선택사항입니다.
-
-**정리하지 않아도 됨**:
-- 병합 커밋이 있어도 PR 기능에 문제없음
-- GitHub에서 "Rebase and Merge"로 병합하면 깔끔해짐
-
-**정리하고 싶다면**:
-```bash
-git rebase upstream/master
-git push --force-with-lease
-```
-
-**주의**: 이미 PR이 생성되어 있으면 팀과 협의 필요
-
-### Q6: master에 직접 커밋해도 되나요?
-
-**A**: 절대 안 됩니다.
-
-- 항상 브랜치를 만들어서 작업
-- PR을 통해서만 master에 병합
-- 예외 없음
-
----
-
-## 7. 실전 예시
-
-### 예시 1: 일반적인 기능 개발
-
-```bash
-# 1. 시작
-git checkout master
-git fetch upstream
-git merge upstream/master
-git checkout -b feature/add-new-feature
-
-# 2. 작업 및 커밋
-git add .
-git commit -m "[OKR-123] Add new feature"
-git push origin feature/add-new-feature
-
-# 3. master에 변경사항 발생 시
-git fetch upstream
-git merge upstream/master  # 충돌 없으면 자동 완료
-
-# 4. 계속 작업
-git add .
-git commit -m "[OKR-123] Fix bug in new feature"
-git push origin feature/add-new-feature
-
-# 5. PR 생성 (GitHub에서)
-# 6. 리뷰 후 "Rebase and Merge"로 병합
-```
-
-### 예시 2: 장기간 개발되는 기능
-
-```bash
-# 주기적으로 master 반영 (예: 매일)
-git fetch upstream
-git merge upstream/master
-
-# 충돌 해결
-# ... 충돌 해결 ...
-git add .
-git commit -m "Merge upstream/master into feature/long-term-feature"
-git push origin feature/long-term-feature
-```
-
-### 예시 3: 긴급 버그 수정
-
-```bash
-# 1. master에서 긴급 브랜치 생성
-git checkout master
-git fetch upstream
-git merge upstream/master
-git checkout -b hotfix/critical-bug
-
-# 2. 빠르게 수정 및 커밋
-git add .
-git commit -m "[OKR-456] Fix critical bug"
-git push origin hotfix/critical-bug
-
-# 3. 즉시 PR 생성 및 병합
-```
-
----
-
-## 8. 체크리스트
-
-### 작업 시작 전
-- [ ] master 브랜치 최신 상태 확인
-- [ ] 새 브랜치 생성
-- [ ] 브랜치 이름 규칙 준수
-
-### 작업 중
-- [ ] 의미 있는 단위로 커밋
-- [ ] 명확한 커밋 메시지 작성
-- [ ] 주기적으로 master 변경사항 반영 (Merge 사용)
-
-### PR 생성 전
-- [ ] 최신 master 반영 확인
-- [ ] 테스트 통과 확인
-- [ ] 커밋 메시지 검토
-
-### PR 병합 시
-- [ ] "Rebase and Merge" 선택 (권장)
-- [ ] 병합 후 브랜치 정리
-
----
-
-## 9. 문제 해결
-
-### 문제: Merge 후 히스토리가 복잡해짐
-
-**해결**: PR 병합 시 "Rebase and Merge" 사용하면 최종적으로 깔끔해짐
-
-### 문제: Rebase 중 충돌이 너무 많음
-
-**해결**: 
-1. Rebase 취소: `git rebase --abort`
-2. Merge 사용: `git merge upstream/master`
-3. 충돌을 한 번에 해결
-
-### 문제: 실수로 잘못된 브랜치에 커밋
+**원인**: 충돌 해결 시 코드가 변경되어 Patch-ID가 달라짐
 
 **해결**:
 ```bash
-# 커밋만 다른 브랜치로 이동
-git log --oneline -5  # 커밋 해시 확인
-git checkout correct-branch
-git cherry-pick <commit-hash>
-git checkout wrong-branch
-git reset --hard HEAD~1  # 잘못된 브랜치에서 커밋 제거
+# 커밋 메시지로 추적
+git log --grep="cherry picked from commit abc123"
+
+# 또는 수동으로 기록 유지
+# docs/UPSTREAM_SYNC.md 파일에 기록
+```
+
+#### Q: Rebase 중 충돌이 너무 많음
+
+**해결**:
+```bash
+# 작은 단위로 rebase
+git rebase -i origin/master
+
+# 또는 충돌이 많으면 merge 고려 (예외적)
+git merge origin/master
+```
+
+#### Q: 잘못된 커밋을 cherry-pick 했음
+
+**해결**:
+```bash
+# 아직 push 전이라면
+git reset --hard HEAD~1
+
+# 이미 push 했다면
+git revert <commit-hash>
+```
+
+### 8.2 유용한 명령어 모음
+
+```bash
+# Upstream에서 가져온 커밋 찾기
+git log --grep="cherry picked from commit"
+
+# 특정 파일의 upstream 변경 확인
+git log --cherry-pick --oneline upstream-master ^master -- path/to/file
+
+# 동기화 상태 요약
+git rev-list --count master..upstream-master  # upstream이 앞선 커밋 수
+git rev-list --count upstream-master..master  # master가 앞선 커밋 수
+
+# Patch-ID 직접 확인
+git show <commit> | git patch-id
+```
+
+### 8.3 동기화 기록 관리
+
+동기화 이력을 문서로 관리하는 것을 권장합니다:
+
+```markdown
+# UPSTREAM_SYNC.md
+
+## 동기화 이력
+
+### 2024-01-15: v6.2.0 동기화
+- 태그: okrbest-sync-20240115
+- 원본: upstream-sync-v6.2.0
+- 반영 커밋:
+  - abc123 → def456 (fix: 알림 버그)
+  - 789abc → 012def (feat: 새 기능)
+- 충돌 해결: src/main/app.ts
+
+### 2024-01-01: v6.1.0 동기화
+- 태그: okrbest-sync-20240101
+- ...
 ```
 
 ---
 
-## 10. 요약
+## 부록: 명령어 요약
 
-### 핵심 원칙
+### 일상 작업
 
-1. **안전성 우선**: Merge 사용이 가장 안전
-2. **일관성**: 모든 팀원이 동일한 방식 사용
-3. **명확성**: 커밋 메시지와 브랜치명 명확하게
+```bash
+# 기능 브랜치 시작
+git checkout -b feature/xxx
 
-### 권장 워크플로우
-
+# 작업 완료 후 master에 병합
+git rebase origin/master
+git checkout master
+git merge --ff-only feature/xxx
 ```
-1. master 업데이트 → 2. 브랜치 생성 → 3. 작업 → 4. master 병합 (Merge) → 5. PR 생성 → 6. Rebase and Merge로 병합
+
+### Upstream 동기화
+
+```bash
+# 새 커밋 확인
+git fetch upstream
+git cherry -v master upstream-master | grep "^+"
+
+# 선택적 반영
+git cherry-pick -x <hash>
 ```
 
-### 기억할 것
+### 추적 및 확인
 
-- ✅ **개인 브랜치에 master 반영**: Merge 사용
-- ✅ **PR 병합**: Rebase and Merge 사용
-- ❌ **공유 브랜치에서 Rebase 금지**
-- ❌ **master에 직접 푸시 금지**
+```bash
+# 가져올 커밋 목록
+git cherry -v master upstream-master
+
+# Upstream에서 온 커밋 찾기
+git log --grep="cherry picked from"
+
+# 동기화 상태
+git log --oneline --graph master upstream-master
+```
 
 ---
 
-*문서 작성일: 2026-01-04*  
-*적용 대상: OKR Best Desktop 프로젝트 전체 팀원*
+*문서 작성일: 2026-01-04*
