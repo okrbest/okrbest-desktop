@@ -23,6 +23,7 @@
 
 | 요구사항 | 설명 |
 |----------|------|
+| **PR 필수** | master에 직접 병합 금지, 모든 변경은 Pull Request를 통해서만 병합 |
 | **선형 히스토리** | 머지 커밋 없이 개별 작업 커밋만 유지 |
 | **Upstream 추적** | 원본 오픈소스(Mattermost) 변경 추적 가능 |
 | **깔끔한 히스토리** | 각 커밋이 논리적 단위로 구성 |
@@ -47,9 +48,10 @@
 
 ### 1.3 해결 전략 요약
 
-- **기능 브랜치 → master**: Rebase and Merge (선형 유지)
-- **upstream → master**: Cherry-pick -x (메타데이터 보존)
+- **기능 브랜치 → master**: Pull Request를 통한 Rebase and Merge (선형 유지)
+- **upstream → master**: Pull Request를 통한 Cherry-pick -x (메타데이터 보존)
 - **Upstream 추적**: Patch-ID 기반 비교 (`git cherry`)
+- **핵심 원칙**: ❌ master에 직접 병합 금지, ✅ 항상 PR을 통해서만 병합
 
 ---
 
@@ -120,26 +122,37 @@ git checkout master
 
 ### 3.1 기능 브랜치 → master
 
-**방식: Rebase and Merge**
+**방식: Pull Request를 통한 병합 (필수)**
 
 ```bash
-# 로컬에서 수행
+# 1. 기능 브랜치에서 작업
 git checkout feature/new-feature
 git fetch origin master
 git rebase origin/master
 
-# 충돌 해결 후
-git checkout master
-git merge --ff-only feature/new-feature
-git push origin master
+# 2. 충돌 해결 후 푸시
+git push origin feature/new-feature
 
-# 브랜치 정리
+# 3. GitHub에서 Pull Request 생성
+# - Base: master
+# - Compare: feature/new-feature
+# - PR 제목과 설명 작성
+
+# 4. 리뷰 후 GitHub에서 병합
+# - "Rebase and merge" 버튼 사용 (권장)
+# - 또는 "Squash and merge" (하나의 논리적 커밋으로)
+
+# 5. 병합 후 브랜치 정리
+git checkout master
+git pull origin master
 git branch -d feature/new-feature
+git push origin --delete feature/new-feature
 ```
 
-**GitHub PR 설정:**
-- "Rebase and merge" 버튼 사용
-- 또는 "Squash and merge" (하나의 논리적 커밋으로)
+**중요 규칙:**
+- ❌ **master에 직접 병합 금지**: 항상 PR을 통해서만 병합
+- ✅ **PR 생성 필수**: 모든 변경사항은 PR을 통해 검토 후 병합
+- ✅ **리뷰 승인 후 병합**: 최소 1명 이상의 승인 필요
 
 ### 3.2 병합 규칙
 
@@ -404,30 +417,60 @@ git commit -m "feat: OKR 위젯 추가"
 git fetch origin master
 git rebase origin/master
 
-# 4. PR 생성 또는 직접 병합
-git checkout master
-git merge --ff-only feature/new-okr-widget
-git push origin master
+# 4. 푸시 및 PR 생성
+git push origin feature/new-okr-widget
 
-# 5. 브랜치 정리
+# 5. GitHub에서 Pull Request 생성
+# - Base: master
+# - Compare: feature/new-okr-widget
+# - PR 제목과 설명 작성
+# - 리뷰어 지정
+
+# 6. 리뷰 후 GitHub에서 병합
+# - "Rebase and merge" 버튼 사용 (권장)
+
+# 7. 병합 후 브랜치 정리
+git checkout master
+git pull origin master
 git branch -d feature/new-okr-widget
+git push origin --delete feature/new-okr-widget
 ```
 
 #### Upstream 동기화
 
 ```bash
-# 1. 동기화 확인
+# 1. 동기화 브랜치 생성
+git checkout master
+git pull origin master
+git checkout -b sync/upstream-$(date +%Y%m%d)
+
+# 2. 동기화 확인
 ./scripts/sync-upstream.sh
 
-# 2. 필요한 커밋 cherry-pick
+# 3. 필요한 커밋 cherry-pick
 git cherry-pick -x abc123
 git cherry-pick -x def456
 
-# 3. 동기화 완료 태그
+# 4. 동기화 완료 태그
 git tag okrbest-sync-$(date +%Y%m%d)
 
-# 4. 푸시
-git push origin master --tags
+# 5. 푸시 및 PR 생성
+git push origin sync/upstream-$(date +%Y%m%d) --tags
+
+# 6. GitHub에서 Pull Request 생성
+# - Base: master
+# - Compare: sync/upstream-YYYYMMDD
+# - PR 제목: "Upstream 동기화: YYYY-MM-DD"
+# - 설명에 cherry-pick한 커밋 목록 포함
+
+# 7. 리뷰 후 GitHub에서 병합
+# - "Rebase and merge" 버튼 사용 (권장)
+
+# 8. 병합 후 브랜치 정리
+git checkout master
+git pull origin master
+git branch -d sync/upstream-$(date +%Y%m%d)
+git push origin --delete sync/upstream-$(date +%Y%m%d)
 ```
 
 ### 6.3 충돌 해결
@@ -465,14 +508,21 @@ git cherry-pick --continue
 # master 브랜치 보호 규칙
 master:
   # 필수 설정
-  - Require pull request reviews before merging: true
+  - Require pull request reviews before merging: true  # PR 필수!
+  - Required number of approvals: 1  # 최소 1명 승인 필요
   - Require status checks to pass: true
   - Require linear history: true  # 핵심!
+  - Require branches to be up to date before merging: true
   
   # 병합 방식
   - Allow merge commits: false    # 비활성화!
-  - Allow squash merging: true
+  - Allow squash merging: false   # 비활성화!
   - Allow rebase merging: true    # 권장
+  
+  # 직접 푸시 방지
+  - Restrict pushes that create files: true
+  - Block force pushes: true
+  - Block deletions: true
 ```
 
 ### 7.2 Merge Request Settings (GitLab)
@@ -537,7 +587,9 @@ git log --grep="cherry picked from commit abc123"
 # 작은 단위로 rebase
 git rebase -i origin/master
 
-# 또는 충돌이 많으면 merge 고려 (예외적)
+# 또는 충돌이 많으면 merge 고려 (예외적, 개인 브랜치에서만)
+# 주의: 이 merge는 개인 브랜치 내부에서만 사용하며,
+#       최종적으로는 PR을 통해 병합해야 함
 git merge origin/master
 ```
 
@@ -601,21 +653,34 @@ git show <commit> | git patch-id
 # 기능 브랜치 시작
 git checkout -b feature/xxx
 
-# 작업 완료 후 master에 병합
+# 작업 완료 후 PR 생성
 git rebase origin/master
-git checkout master
-git merge --ff-only feature/xxx
+git push origin feature/xxx
+
+# GitHub에서 Pull Request 생성 후 리뷰 및 병합
+# ❌ 직접 병합 금지: 항상 PR을 통해서만 병합
 ```
 
 ### Upstream 동기화
 
 ```bash
-# 새 커밋 확인
+# 1. 동기화 브랜치 생성
+git checkout master
+git pull origin master
+git checkout -b sync/upstream-YYYYMMDD
+
+# 2. 새 커밋 확인
 git fetch upstream
 git cherry -v master upstream-master | grep "^+"
 
-# 선택적 반영
+# 3. 선택적 반영
 git cherry-pick -x <hash>
+
+# 4. 푸시 및 PR 생성
+git push origin sync/upstream-YYYYMMDD
+
+# 5. GitHub에서 Pull Request 생성 후 리뷰 및 병합
+# ❌ 직접 병합 금지: 항상 PR을 통해서만 병합
 ```
 
 ### 추적 및 확인
