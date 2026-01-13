@@ -1,5 +1,7 @@
 // Copyright (c) 2016-present Mattermost, Inc. All Rights Reserved.
+// Copyright (c) 2024-present OKR Best. All Rights Reserved.
 // See LICENSE.txt for license information.
+// Modified for OKR Best project.
 
 import {MASK_EMAIL, MASK_IPV4, MASK_PATH, MASK_URL, REGEX_EMAIL, REGEX_IPV4, REGEX_PATH_DARWIN, REGEX_PATH_LINUX, REGEX_PATH_WIN32, REGEX_URL} from 'common/constants';
 
