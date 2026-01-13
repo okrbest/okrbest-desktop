@@ -2,10 +2,10 @@
   "publish": [
     {
     "provider": "generic",
-    "url": "https://releases.mattermost.com/desktop"
+    "url": "https://releases.okrbest.com/desktop"
     }
   ],
-  "appId": "Mattermost.Desktop",
+  "appId": "OKRBest.Desktop",
   "artifactName": "${version}/${name}-${version}-${os}-${arch}.${ext}",
   "directories": {
     "buildResources": "src/assets",
@@ -38,9 +38,9 @@
   ],
   "protocols": [
     {
-      "name": "Mattermost",
+      "name": "OKR Best",
       "schemes": [
-        "mattermost"
+        "okrbest"
       ]
     }
   ],
@@ -49,7 +49,7 @@
   "afterAllArtifactBuild": "scripts/afterbuild.js",
   "deb": {
     "artifactName": "${version}/${name}_${version}-1_${arch}.${ext}",
-    "synopsis": "Mattermost Desktop App",
+    "synopsis": "OKR Best Desktop App",
     "depends": [
       "libnotify4",
       "libxtst6",
@@ -112,7 +112,7 @@
     "extendInfo": {
       "NSMicrophoneUsageDescription": "Microphone access is used to capture audio for voice communication and recordings.",
       "NSCameraUsageDescription": "Camera access is used to capture video for video conferencing and recordings.",
-      "NSFocusStatusUsageDescription": "Focus status is used by Mattermost to determine whether to send notifications or not.",
+      "NSFocusStatusUsageDescription": "Focus status is used by OKR Best to determine whether to send notifications or not.",
       "LSFileQuarantineEnabled": true
     }
   },
@@ -173,7 +173,7 @@
       }
     ],
     "signDlls": true,
-    "publisherName": "CN=\"Mattermost, Inc.\", O=\"Mattermost, Inc.\", L=Palo Alto, S=California, C=US"
+    "publisherName": "OKR Best"
   },
   "nsis": {
     "artifactName": "${version}/${name}-setup-${version}-win.${ext}",

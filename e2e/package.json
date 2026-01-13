@@ -1,7 +1,7 @@
 {
-  "name": "desktop-e2e",
+  "name": "okrbest-desktop-e2e",
   "version": "1.0.0",
-  "description": "E2E tests for the Desktop App",
+  "description": "E2E tests for OKR Best Desktop App",
   "main": "dist/e2e_bundle.js",
   "scripts": {
     "clean": "rm -rf dist/ mochawesome-report/ node_modules/ testUserData/",
@@ -15,14 +15,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@github.com/mattermost/desktop.git"
+    "url": "git+ssh://git@github.com/okrbest/okrbest-desktop.git"
   },
-  "author": "Mattermost, Inc. <feedback@mattermost.com>",
+  "author": "OKR Best",
   "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/mattermost/desktop/issues"
+    "url": "https://github.com/okrbest/okrbest-desktop/issues"
   },
-  "homepage": "https://github.com/mattermost/desktop#readme",
+  "homepage": "https://github.com/okrbest/okrbest-desktop#readme",
   "dependencies": {
     "@aws-sdk/client-s3": "3.758.0",
     "@aws-sdk/lib-storage": "3.758.0",
