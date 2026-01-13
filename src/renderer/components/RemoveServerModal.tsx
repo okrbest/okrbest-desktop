@@ -1,6 +1,8 @@
 // Copyright (c) 2015-2016 Yuya Ochiai
 // Copyright (c) 2016-present Mattermost, Inc. All Rights Reserved.
+// Copyright (c) 2024-present OKR Best. All Rights Reserved.
 // See LICENSE.txt for license information.
+// Modified for OKR Best project.
 
 import React from 'react';
 import {FormattedMessage, useIntl} from 'react-intl';

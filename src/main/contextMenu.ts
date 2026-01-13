@@ -1,6 +1,8 @@
 // Copyright (c) 2015-2016 Yuya Ochiai
 // Copyright (c) 2016-present Mattermost, Inc. All Rights Reserved.
+// Copyright (c) 2024-present OKR Best. All Rights Reserved.
 // See LICENSE.txt for license information.
+// Modified for OKR Best project.
 
 import type {BrowserWindow, BrowserView, WebviewTag, WebContents, ContextMenuParams, Event} from 'electron';
 import type {Options} from 'electron-context-menu';

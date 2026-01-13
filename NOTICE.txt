@@ -1,11 +1,18 @@
-Mattermost Desktop
+OKR Best Desktop
 
-© 2016-2017 Mattermost, Inc.  All Rights Reserved.  See LICENSE.txt for license information.
+© 2024-present OKR Best. All Rights Reserved.
+Based on Mattermost Desktop © 2016-present Mattermost, Inc. All Rights Reserved.
+
+See LICENSE.txt for license information.
+
+This software is a derivative work based on Mattermost Desktop,
+originally developed by Mattermost, Inc. and contributors.
+OKR Best Desktop is developed and maintained by the OKR Best team.
 
 NOTICES:
 --------
 
-This document includes a list of open source components used in Mattermost Desktop, including those that have been modified.
+This document includes a list of open source components used in OKR Best Desktop, including those that have been modified.
 
 --------
 

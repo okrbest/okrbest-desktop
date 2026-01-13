@@ -1,5 +1,7 @@
 // Copyright (c) 2016-present Mattermost, Inc. All Rights Reserved.
+// Copyright (c) 2024-present OKR Best. All Rights Reserved.
 // See LICENSE.txt for license information.
+// Modified for OKR Best project.
 
 import pastDefaultPreferences from 'common/config/pastDefaultPreferences';
 import {upgradeV0toV1, upgradeV1toV2, upgradeV2toV3, upgradeV3toV4} from 'common/config/upgradePreferences';
