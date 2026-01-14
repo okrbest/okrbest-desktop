@@ -2,13 +2,13 @@
 <policyDefinitionResources revision="0.1" schemaVersion="1.0">
 	<displayName/>
 	<description/>
-	<resources >
-		<stringTable >
-			<string id="RequiresMattermost43">Requires Mattermost Desktop 4.3 or later</string>
-            <string id="RequiresMattermost51">Requires Mattermost Desktop 5.1 or later</string>
-			<string id="mattermost">Mattermost</string>
+	<resources>
+		<stringTable>
+			<string id="RequiresOKRBest43">Requires OKR Best Desktop 4.3 or later</string>
+			<string id="RequiresOKRBest51">Requires OKR Best Desktop 5.1 or later</string>
+			<string id="okrbest">OKR Best</string>
 			
-      		<string id="EnableAutoUpdater">EnableAutoUpdater</string>
+			<string id="EnableAutoUpdater">EnableAutoUpdater</string>
 			<string id="EnableAutoUpdaterDescription">If this policy is enabled, users will receive notifications when new versions of the desktop app are available. System Administrator privileges on the computer are required to install the update.</string>
      
 			<string id="EnableServerManagement">EnableServerManagement</string>
@@ -16,11 +16,11 @@
 
 If this policy is disabled, the Server Management section is hidden in the app settings and only servers defined by Group Policy can be used.</string>
 			<string id="DefaultServerList">DefaultServerList</string>
-			<string id="DefaultServerListDescription">If this policy is enabled, you can define one or more Mattermost servers that will be pre-configured for users when they launch the app. "Value name" represents the name of the corresponding server tab and "Value" is the URL of the Mattermost server.</string>
+			<string id="DefaultServerListDescription">If this policy is enabled, you can define one or more OKR Best servers that will be pre-configured for users when they launch the app. "Value name" represents the name of the corresponding server tab and "Value" is the URL of the OKR Best server.</string>
 		</stringTable>
 		<presentationTable>
 			<presentation id="DefaultServerList">
-				<listBox refId="DefaultServerList">List of default Mattermost servers:</listBox>
+				<listBox refId="DefaultServerList">List of default OKR Best servers:</listBox>
 			</presentation>
 		</presentationTable>
 	</resources>

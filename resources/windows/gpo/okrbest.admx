@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<policyDefinitions revision="0.1" schemaVersion="1.0">
+	<policyNamespaces>
+		<target prefix="okrbest" namespace="OKRBest.Policies"/>
+	</policyNamespaces>
+	<resources minRequiredRevision="0.1"/>
+	<supportedOn>
+		<definitions>
+			<definition name="RequiresOKRBest43" displayName="$(string.RequiresOKRBest43)"/>
+			<definition name="RequiresOKRBest51" displayName="$(string.RequiresOKRBest51)"/>
+		</definitions>
+	</supportedOn>
+	<categories>
+		<category displayName="$(string.okrbest)" name="okrbest"></category>
+	</categories>
+	<policies>
+		<policy name="EnableAutoUpdater" class="Machine" displayName="$(string.EnableAutoUpdater)" explainText="$(string.EnableAutoUpdaterDescription)" key="Software\Policies\OKRBest" valueName="EnableAutoUpdater">
+			<parentCategory ref="okrbest"/>
+			<supportedOn ref="RequiresOKRBest51"/>
+			<enabledValue>
+				<decimal value="1"/>
+			</enabledValue>
+			<disabledValue>
+				<decimal value="0"/>
+			</disabledValue>
+		</policy>
+		<policy name="EnableServerManagement" class="Both" displayName="$(string.EnableServerManagement)" explainText="$(string.EnableServerManagementDescription)" key="Software\Policies\OKRBest" valueName="EnableServerManagement">
+			<parentCategory ref="okrbest"/>
+			<supportedOn ref="RequiresOKRBest43"/>
+			<enabledValue>
+				<decimal value="1"/>
+			</enabledValue>
+			<disabledValue>
+				<decimal value="0"/>
+			</disabledValue>
+		</policy>
+		<policy name="DefaultServerList" class="Both" displayName="$(string.DefaultServerList)" explainText="$(string.DefaultServerListDescription)" presentation="$(presentation.DefaultServerList)" key="Software\Policies\OKRBest">
+			<parentCategory ref="okrbest" />
+			<supportedOn ref="RequiresOKRBest43" />
+			<elements>
+				<list id="DefaultServerList" key="Software\Policies\OKRBest\DefaultServerList" additive="true" explicitValue="true" />
+			</elements>
+		</policy>
+	</policies>
+</policyDefinitions>
