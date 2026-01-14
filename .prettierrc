@@ -4,5 +4,6 @@
   "useTabs": false,
   "trailingComma": "all",
   "printWidth": 120,
-  "endOfLine": "lf"
+  "endOfLine": "lf",
+  "bracketSpacing": false
 }
