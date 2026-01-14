@@ -57,7 +57,7 @@ jobs:
           repository_full_name: ${{ github.repository }}
           commit_sha: ${{ github.event.pull_request.head.sha || github.sha }}
           context: e2e/${{ matrix.platform }}
-          description: E2E tests for Mattermost desktop app on ${{ matrix.platform }} have started...
+          description: E2E tests for OKR Best desktop app on ${{ matrix.platform }} have started...
           status: pending
 
   e2e-tests:

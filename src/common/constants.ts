@@ -53,7 +53,7 @@ export const COOKIE_NAME_AUTH_TOKEN = 'MMAUTHTOKEN';
 
 export const DEFAULT_HELP_LINK = 'https://docs.okrbest.com/guides/collaborate.html';
 export const DEFAULT_ACADEMY_LINK = 'https://academy.okrbest.com/';
-export const DEFAULT_TE_REPORT_PROBLEM_LINK = 'https://okrbest.com/report-bug';
+export const DEFAULT_TE_REPORT_PROBLEM_LINK = 'https://okr.best/report-bug';
 export const DEFAULT_EE_REPORT_PROBLEM_LINK = 'https://support.okrbest.com/';
 export const DEFAULT_UPGRADE_LINK = 'https://okrbest.com/desktop-upgrade';
 export const DEFAULT_CHANGELOG_LINK = 'https://docs.okrbest.com/about/desktop-app-changelog.html';

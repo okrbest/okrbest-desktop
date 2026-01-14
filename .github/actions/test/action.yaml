@@ -1,4 +1,6 @@
 # Copyright 2022 Mattermost, Inc.
+# Copyright 2024-present OKR Best. All Rights Reserved.
+# Modified for OKR Best project.
 name: "test-ci"
 description: This action used to run universal tests for all OS
 

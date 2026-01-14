@@ -1,4 +1,6 @@
 # Copyright 2022 Mattermost, Inc.
+# Copyright 2024-present OKR Best. All Rights Reserved.
+# Modified for OKR Best project.
 name: "patch-version"
 description: This action is used to patch package.json version with the nightly build
 

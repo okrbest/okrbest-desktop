@@ -313,7 +313,7 @@ describe('app/menus/appMenu/help', () => {
             const menu = createHelpMenu();
             const reportProblemItem = menu.submenu.find((item) => item.label === 'Report a problem');
             reportProblemItem.click();
-            expect(shell.openExternal).toHaveBeenCalledWith('https://okrbest.com/report-bug');
+            expect(shell.openExternal).toHaveBeenCalledWith('https://okr.best/report-bug');
         });
 
         describe('should only show report problem link if the link is a valid http or https URL', () => {

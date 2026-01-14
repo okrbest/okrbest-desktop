@@ -49,7 +49,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          repository_full_name: mattermost/desktop
+          repository_full_name: okrbest/okrbest-desktop
           commit_sha: ${{ needs.calculate-commit-hash.outputs.DESKTOP_SHA }}
           context: e2e/compatibility-matrix-testing
           description: "Compatibility Matrix Testing for ${{ inputs.DESKTOP_VERSION }} version"
@@ -112,7 +112,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          repository_full_name: mattermost/desktop
+          repository_full_name: okrbest/okrbest-desktop
           commit_sha: ${{ needs.calculate-commit-hash.outputs.DESKTOP_SHA }}
           context: e2e/compatibility-matrix-testing
           description: "Compatibility Matrix Testing for ${{ inputs.DESKTOP_VERSION }} version"
@@ -130,7 +130,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          repository_full_name: mattermost/desktop
+          repository_full_name: okrbest/okrbest-desktop
           commit_sha: ${{ needs.calculate-commit-hash.outputs.DESKTOP_SHA }}
           context: e2e/compatibility-matrix-testing
           description: "Compatibility Matrix Testing for ${{ inputs.DESKTOP_VERSION }} version"

@@ -18,7 +18,7 @@ jobs:
       - name: nightly/create-nightly-build-tag
         id: tag-creation
         run: |
-          git config --global user.email "nightly-build@mattermost.com"
+          git config --global user.email "nightly-build@okr.best"
           git config --global user.name "Nightly Build"
           git checkout -b "$(jq -r .version package.json)"
           git add package.json

@@ -8,7 +8,7 @@ Reporting security issues
 
 **Please do not use GitHub issues for security-sensitive communication.**
 
-Security issues in any of the open source codebases maintained by OKR Best should be reported via email to [security@okrbest.com](mailto:security@okrbest.com). OKR Best is committed to working together with researchers and keeping them updated throughout the patching process. Researchers who responsibly report valid security issues will be publicly credited for their efforts (if they so choose).
+Security issues in any of the open source codebases maintained by OKR Best should be reported via email to [security@okr.best](mailto:security@okr.best). OKR Best is committed to working together with researchers and keeping them updated throughout the patching process. Researchers who responsibly report valid security issues will be publicly credited for their efforts (if they so choose).
 
 For a more detailed description of the disclosure process, see [Report a Security Vulnerability](https://okrbest.com/security-vulnerability-report/) on the OKR Best website.
 
