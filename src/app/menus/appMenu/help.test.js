@@ -212,24 +212,24 @@ describe('app/menus/appMenu/help', () => {
         it('should show academy link when available', () => {
             localizeMessage.mockImplementation((id) => {
                 if (id === 'main.menus.app.help.academy') {
-                    return 'Mattermost Academy';
+                    return 'OKR Best Academy';
                 }
                 return id;
             });
             const menu = createHelpMenu();
-            const academyItem = menu.submenu.find((item) => item.label === 'Mattermost Academy');
+            const academyItem = menu.submenu.find((item) => item.label === 'OKR Best Academy');
             expect(academyItem).not.toBe(undefined);
         });
 
         it('should call shell.openExternal with academy link when academy is clicked', () => {
             localizeMessage.mockImplementation((id) => {
                 if (id === 'main.menus.app.help.academy') {
-                    return 'Mattermost Academy';
+                    return 'OKR Best Academy';
                 }
                 return id;
             });
             const menu = createHelpMenu();
-            const academyItem = menu.submenu.find((item) => item.label === 'Mattermost Academy');
+            const academyItem = menu.submenu.find((item) => item.label === 'OKR Best Academy');
             academyItem.click();
             expect(shell.openExternal).toHaveBeenCalledWith('http://academy.site.com');
         });
@@ -297,7 +297,7 @@ describe('app/menus/appMenu/help', () => {
             const menu = createHelpMenu();
             const reportProblemItem = menu.submenu.find((item) => item.label === 'Report a problem');
             reportProblemItem.click();
-            expect(shell.openExternal).toHaveBeenCalledWith('https://support.mattermost.com/hc/en-us/requests/new');
+            expect(shell.openExternal).toHaveBeenCalledWith('https://support.okrbest.com/');
         });
 
         it('should use default report problem link for team edition', () => {
@@ -313,7 +313,7 @@ describe('app/menus/appMenu/help', () => {
             const menu = createHelpMenu();
             const reportProblemItem = menu.submenu.find((item) => item.label === 'Report a problem');
             reportProblemItem.click();
-            expect(shell.openExternal).toHaveBeenCalledWith('https://mattermost.com/pl/report-a-bug');
+            expect(shell.openExternal).toHaveBeenCalledWith('https://okrbest.com/report-bug');
         });
 
         describe('should only show report problem link if the link is a valid http or https URL', () => {
