@@ -173,8 +173,13 @@
         "to": "gpo"
       }
     ],
-    "signDlls": true,
-    "publisherName": "OKR Best"
+    "signExts": [".dll", ".node"],
+    "azureSignOptions": { 
+      "certificateProfileName": "okrbest-desktop-app",
+      "codeSigningAccountName": "DesktopAppCodeSigning",
+      "endpoint": "https://eus.codesigning.azure.net",
+      "publisherName": "CN=\"OKR Best Inc.\", O=\"OKR Best Inc.\", L=Gyeonggi-do, S=Gyeonggi-do, C=KR"
+    }
   },
   "nsis": {
     "artifactName": "${version}/${name}-setup-${version}-win.${ext}",
