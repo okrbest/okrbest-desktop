@@ -7,8 +7,19 @@ import path from 'path';
 import {pathToFileURL} from 'url';
 
 import type {IpcMainInvokeEvent} from 'electron';
-import {app, BrowserWindow, ipcMain, nativeTheme, net, protocol, session} from 'electron';
-import installExtension, {REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS} from 'electron-devtools-installer';
+import {
+    app,
+    BrowserWindow,
+    ipcMain,
+    nativeTheme,
+    net,
+    protocol,
+    session,
+} from 'electron';
+import installExtension, {
+    REACT_DEVELOPER_TOOLS,
+    REDUX_DEVTOOLS,
+} from 'electron-devtools-installer';
 import isDev from 'electron-is-dev';
 
 import MainWindow from 'app/mainWindow/mainWindow';
@@ -100,10 +111,7 @@ import {
     wasUpdated,
     updateServerInfos,
 } from './utils';
-import {
-    handleDoubleClick,
-    handleGetDarkMode,
-} from './windows';
+import {handleDoubleClick, handleGetDarkMode} from './windows';
 
 import {protocols} from '../../../electron-builder.json';
 
@@ -125,10 +133,7 @@ export async function initialize() {
     initializeBeforeAppReady();
 
     // wait for registry config data to load and app ready event
-    await Promise.all([
-        app.whenReady(),
-        Config.initRegistry(),
-    ]);
+    await Promise.all([app.whenReady(), Config.initRegistry()]);
 
     // no need to continue initializing if app is quitting
     if (global.willAppQuit) {
@@ -212,7 +217,9 @@ function initializeBeforeAppReady() {
     // prevent using a different working directory, which happens on windows running after installation.
     const expectedPath = path.dirname(process.execPath);
     if (process.cwd() !== expectedPath && !isDev) {
-        log.warn(`Current working directory is ${process.cwd()}, changing into ${expectedPath}`);
+        log.warn(
+            `Current working directory is ${process.cwd()}, changing into ${expectedPath}`,
+        );
         process.chdir(expectedPath);
     }
 
@@ -233,7 +240,9 @@ function initializeBeforeAppReady() {
     AllowProtocolDialog.init();
 
     if (isDev && process.env.NODE_ENV !== 'test') {
-        app.setAsDefaultProtocolClient('mattermost-dev', process.execPath, [path.resolve(process.cwd(), 'dist/')]);
+        app.setAsDefaultProtocolClient('okrbest-dev', process.execPath, [
+            path.resolve(process.cwd(), 'dist/'),
+        ]);
     } else if (mainProtocol) {
         app.setAsDefaultProtocolClient(mainProtocol);
     }
@@ -243,7 +252,7 @@ function initializeBeforeAppReady() {
     }
 
     protocol.registerSchemesAsPrivileged([
-        {scheme: 'mattermost-desktop', privileges: {standard: true}},
+        {scheme: 'okrbest-desktop', privileges: {standard: true}},
     ]);
 }
 
@@ -257,7 +266,10 @@ function initializeInterCommunicationEventListeners() {
 
     ipcMain.on(QUIT, handleQuit);
 
-    ipcMain.handle(GET_AVAILABLE_SPELL_CHECKER_LANGUAGES, () => session.defaultSession.availableSpellCheckerLanguages);
+    ipcMain.handle(
+        GET_AVAILABLE_SPELL_CHECKER_LANGUAGES,
+        () => session.defaultSession.availableSpellCheckerLanguages,
+    );
     ipcMain.on(START_UPDATE_DOWNLOAD, handleStartDownload);
     ipcMain.on(START_UPGRADE, handleStartUpgrade);
     ipcMain.handle(PING_DOMAIN, handlePingDomain);
@@ -281,7 +293,7 @@ function initializeInterCommunicationEventListeners() {
 }
 
 async function initializeAfterAppReady() {
-    protocol.handle('mattermost-desktop', (request: Request) => {
+    protocol.handle('okrbest-desktop', (request: Request) => {
         const url = parseURL(request.url);
         if (!url) {
             return new Response('bad', {status: 400});
@@ -291,7 +303,10 @@ async function initializeAfterAppReady() {
         // https://www.electronjs.org/docs/latest/api/protocol#protocolhandlescheme-handler
         const pathToServe = path.join(app.getAppPath(), 'renderer', url.pathname);
         const relativePath = path.relative(app.getAppPath(), pathToServe);
-        const isSafe = relativePath && !relativePath.startsWith('..') && !path.isAbsolute(relativePath);
+        const isSafe =
+      relativePath &&
+      !relativePath.startsWith('..') &&
+      !path.isAbsolute(relativePath);
         if (!isSafe) {
             return new Response('bad', {status: 400});
         }
@@ -325,22 +340,31 @@ async function initializeAfterAppReady() {
     ServerManager.init();
     ServerManager.off(SERVER_ADDED, PreAuthManager.loadPreAuthSecretForServer);
 
-    app.setAppUserModelId('Mattermost.Desktop'); // Use explicit AppUserModelID
+    app.setAppUserModelId('OKRBest.Desktop'); // Use explicit AppUserModelID
     const defaultSession = session.defaultSession;
     defaultSession.webRequest.onHeadersReceived((details, callback) => {
         const url = parseURL(details.url);
-        if (url?.protocol === 'mattermost-desktop:' && url?.pathname.endsWith('html')) {
+        if (
+            url?.protocol === 'okrbest-desktop:' &&
+      url?.pathname.endsWith('html')
+        ) {
             callback({
                 responseHeaders: {
                     ...details.responseHeaders,
-                    'Content-Security-Policy': [`default-src 'self'; style-src 'self' 'nonce-${NonceManager.create(details.url)}'; media-src data:; img-src 'self' data:`],
+                    'Content-Security-Policy': [
+                        `default-src 'self'; style-src 'self' 'nonce-${NonceManager.create(
+                            details.url,
+                        )}'; media-src data:; img-src 'self' data:`,
+                    ],
                 },
             });
             return;
         }
 
         // You can't call the callback more than once, so return if the preAuthManager handled it
-        if (PreAuthManager.preAuthHeaderOnHeadersReceivedHander(details, callback)) {
+        if (
+            PreAuthManager.preAuthHeaderOnHeadersReceivedHander(details, callback)
+        ) {
             return;
         }
 
@@ -374,28 +398,42 @@ async function initializeAfterAppReady() {
     });
 
     if (process.platform !== 'darwin') {
-        defaultSession.on('spellcheck-dictionary-download-failure', (event, lang) => {
-            if (Config.spellCheckerURL) {
-                log.error(`There was an error while trying to load the dictionary definitions for ${lang} from fully the specified url. Please review you have access to the needed files. Url used was ${Config.spellCheckerURL}`);
-            } else {
-                log.warn(`There was an error while trying to download the dictionary definitions for ${lang}, spellchecking might not work properly.`);
-            }
-        });
+        defaultSession.on(
+            'spellcheck-dictionary-download-failure',
+            (event, lang) => {
+                if (Config.spellCheckerURL) {
+                    log.error(
+                        `There was an error while trying to load the dictionary definitions for ${lang} from fully the specified url. Please review you have access to the needed files. Url used was ${Config.spellCheckerURL}`,
+                    );
+                } else {
+                    log.warn(
+                        `There was an error while trying to download the dictionary definitions for ${lang}, spellchecking might not work properly.`,
+                    );
+                }
+            },
+        );
 
         if (Config.spellCheckerURL) {
             const spellCheckerURL = Config.spellCheckerURL.endsWith('/') ? Config.spellCheckerURL : `${Config.spellCheckerURL}/`;
-            log.info(`Configuring spellchecker using download URL: ${spellCheckerURL}`);
+            log.info(
+                `Configuring spellchecker using download URL: ${spellCheckerURL}`,
+            );
             defaultSession.setSpellCheckerDictionaryDownloadURL(spellCheckerURL);
 
-            defaultSession.on('spellcheck-dictionary-download-success', (event, lang) => {
-                log.info(`Dictionary definitions downloaded successfully for ${lang}`);
-            });
+            defaultSession.on(
+                'spellcheck-dictionary-download-success',
+                (event, lang) => {
+                    log.info(
+                        `Dictionary definitions downloaded successfully for ${lang}`,
+                    );
+                },
+            );
         }
         updateSpellCheckerLocales();
     }
 
     if (typeof Config.canUpgrade === 'undefined') {
-        // windows might not be ready, so we have to wait until it is
+    // windows might not be ready, so we have to wait until it is
         Config.once('update', () => {
             log.debug('checkForUpdates');
             if (Config.canUpgrade && Config.autoCheckForUpdates) {
@@ -421,13 +459,18 @@ async function initializeAfterAppReady() {
     // eslint-disable-next-line no-undef
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
     // @ts-ignore
-    if ((global.isDev || __IS_NIGHTLY_BUILD__) && !DeveloperMode.get('disableDevTools')) {
+    if (
+        (global.isDev || __IS_NIGHTLY_BUILD__) &&
+    !DeveloperMode.get('disableDevTools')
+    ) {
         installExtension([REACT_DEVELOPER_TOOLS, REDUX_DEVTOOLS], {
             loadExtensionOptions: {
                 allowFileAccess: true,
             },
         }).
-            then(([react, redux]) => log.info(`Added Extension:  ${react.name}, ${redux.name}`)).
+            then(([react, redux]) =>
+                log.info(`Added Extension:  ${react.name}, ${redux.name}`),
+            ).
             catch((err) => log.error('An error occurred: ', {err}));
     }
 
@@ -449,16 +492,20 @@ async function initializeAfterAppReady() {
     // Call this to initiate a permissions check for DND state
     getDoNotDisturb();
 
-    DeveloperMode.switchOff('disableUserActivityMonitor', () => {
-        // listen for status updates and pass on to renderer
-        UserActivityMonitor.on('status', onUserActivityStatus);
+    DeveloperMode.switchOff(
+        'disableUserActivityMonitor',
+        () => {
+            // listen for status updates and pass on to renderer
+            UserActivityMonitor.on('status', onUserActivityStatus);
 
-        // start monitoring user activity (needs to be started after the app is ready)
-        UserActivityMonitor.startMonitoring();
-    }, () => {
-        UserActivityMonitor.off('status', onUserActivityStatus);
-        UserActivityMonitor.stopMonitoring();
-    });
+            // start monitoring user activity (needs to be started after the app is ready)
+            UserActivityMonitor.startMonitoring();
+        },
+        () => {
+            UserActivityMonitor.off('status', onUserActivityStatus);
+            UserActivityMonitor.stopMonitoring();
+        },
+    );
 
     if (shouldShowTrayIcon()) {
         Tray.init(Config.trayIconTheme);
@@ -481,7 +528,9 @@ async function initializeAfterAppReady() {
 
     // handle permission requests
     // - approve if a supported permission type and the request comes from the renderer or one of the defined servers
-    defaultSession.setPermissionRequestHandler(PermissionsManager.handlePermissionRequest);
+    defaultSession.setPermissionRequestHandler(
+        PermissionsManager.handlePermissionRequest,
+    );
 
     if (wasUpdated(AppVersionManager.lastAppVersion)) {
         clearAppCache();
@@ -501,7 +550,12 @@ function onUserActivityStatus(status: {
     isSystemEvent: boolean;
 }) {
     log.debug('UserActivityMonitor.on(status)', {status});
-    WebContentsManager.sendToAllViews(USER_ACTIVITY_UPDATE, status.userIsActive, status.idleTime, status.isSystemEvent);
+    WebContentsManager.sendToAllViews(
+        USER_ACTIVITY_UPDATE,
+        status.userIsActive,
+        status.idleTime,
+        status.isSystemEvent,
+    );
 }
 
 function handleStartDownload() {
