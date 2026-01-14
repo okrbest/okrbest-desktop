@@ -185,9 +185,9 @@ describe('server_management/popout_windows', function desc() {
             const mainWindowTitle = await mainWindow.title();
             const popoutWindowTitle = await popoutWindow.title();
 
-            // Both windows should have similar titles (Mattermost Desktop App)
-            mainWindowTitle.should.contain('Mattermost');
-            popoutWindowTitle.should.contain('Mattermost');
+            // Both windows should have similar titles (OKR Best Desktop App)
+            mainWindowTitle.should.contain('OKR Best');
+            popoutWindowTitle.should.contain('OKR Best');
 
             // Close the popout window
             const browserWindow = await this.app.browserWindow(popoutWindow);
