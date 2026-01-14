@@ -2,8 +2,24 @@
     "i18n-ally.localesPaths": [
         "i18n"
     ],
+    // ESLint를 기본 포맷터로 사용 (JavaScript/TypeScript)
+    "[javascript]": {
+        "editor.defaultFormatter": "dbaeumer.vscode-eslint"
+    },
+    "[typescript]": {
+        "editor.defaultFormatter": "dbaeumer.vscode-eslint"
+    },
+    "[javascriptreact]": {
+        "editor.defaultFormatter": "dbaeumer.vscode-eslint"
+    },
+    "[typescriptreact]": {
+        "editor.defaultFormatter": "dbaeumer.vscode-eslint"
+    },
+    // Prettier 대신 ESLint가 포맷팅 담당
+    "eslint.format.enable": true,
+    "editor.formatOnSave": false,
     "editor.codeActionsOnSave": {
-        "source.fixAll.eslint": "always",
+        "source.fixAll.eslint": "always"
     },
     "cSpell.words": [
         "appimage",
