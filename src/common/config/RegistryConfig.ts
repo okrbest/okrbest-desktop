@@ -14,7 +14,7 @@ import type {RegistryConfig as RegistryConfigType, Server} from 'types/config';
 
 const log = new Logger('RegistryConfig');
 const REGISTRY_HIVE_LIST = [HKEY.HKEY_LOCAL_MACHINE, HKEY.HKEY_CURRENT_USER];
-const BASE_REGISTRY_KEY_PATH = 'SOFTWARE\\Policies\\Mattermost';
+const BASE_REGISTRY_KEY_PATH = 'SOFTWARE\\Policies\\OKRBest';
 export const REGISTRY_READ_EVENT = 'registry-read';
 
 /**

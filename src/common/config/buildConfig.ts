@@ -8,7 +8,7 @@ import type {BuildConfig} from 'types/config';
 
 import {DEFAULT_ACADEMY_LINK, DEFAULT_HELP_LINK, DEFAULT_UPGRADE_LINK} from '../../common/constants';
 
-// For detailed guides, please refer to https://docs.mattermost.com/deployment/desktop-app-deployment.html
+// For detailed guides, please refer to https://docs.okrbest.com/deployment/desktop-app-deployment.html
 
 /**
  * Build-time configuration. End-users can't change these parameters.
@@ -38,7 +38,7 @@ const buildConfig: BuildConfig = {
     enableAutoUpdater: true,
     managedResources: ['trusted'],
     allowedProtocols: [
-        'mattermost',
+        'okrbest',
         'ftp',
         'mailto',
         'tel',
