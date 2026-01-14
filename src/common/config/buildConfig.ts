@@ -39,6 +39,7 @@ const buildConfig: BuildConfig = {
     managedResources: ['trusted'],
     allowedProtocols: [
         'okrbest',
+        'mattermost',
         'ftp',
         'mailto',
         'tel',

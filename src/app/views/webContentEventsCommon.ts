@@ -41,12 +41,20 @@ function sanitizeMessage(sourceURL: string, message: string) {
     return message.replace(parsedURL.host, '<host>');
 }
 
+// Get all registered protocol schemes from electron-builder.json
+const registeredSchemes = protocols?.[0]?.schemes ?? [];
+
 export function isCustomProtocol(url: URL) {
-    const scheme = protocols && protocols[0] && protocols[0].schemes && protocols[0].schemes[0];
-    return url.protocol !== 'http:' && url.protocol !== 'https:' && url.protocol !== `${scheme}:`;
+    if (url.protocol === 'http:' || url.protocol === 'https:') {
+        return false;
+    }
+    // Check if the protocol is one of our registered schemes
+    const protocolWithoutColon = url.protocol.slice(0, -1);
+    return !registeredSchemes.includes(protocolWithoutColon);
 }
 
 export function isMattermostProtocol(url: URL) {
-    const scheme = protocols && protocols[0] && protocols[0].schemes && protocols[0].schemes[0];
-    return url.protocol === `${scheme}:`;
+    // Check if the protocol matches any of our registered schemes (okrbest, mattermost)
+    const protocolWithoutColon = url.protocol.slice(0, -1);
+    return registeredSchemes.includes(protocolWithoutColon);
 }

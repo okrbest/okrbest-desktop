@@ -243,8 +243,14 @@ function initializeBeforeAppReady() {
         app.setAsDefaultProtocolClient('okrbest-dev', process.execPath, [
             path.resolve(process.cwd(), 'dist/'),
         ]);
+        app.setAsDefaultProtocolClient('mattermost-dev', process.execPath, [
+            path.resolve(process.cwd(), 'dist/'),
+        ]);
     } else if (mainProtocol) {
         app.setAsDefaultProtocolClient(mainProtocol);
+
+        // Dual protocol support: also register mattermost:// for backward compatibility
+        app.setAsDefaultProtocolClient('mattermost');
     }
 
     if (process.platform === 'darwin' || process.platform === 'win32') {

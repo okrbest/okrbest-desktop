@@ -24,7 +24,12 @@ import type {Boundaries} from 'types/utils';
 
 import {mainProtocol} from './initialize';
 
+import {protocols} from '../../../electron-builder.json';
+
 const log = new Logger('App.Utils');
+
+// Get all registered protocol schemes from electron-builder.json
+const registeredSchemes = protocols?.[0]?.schemes ?? [];
 
 export function openDeepLink(deeplinkingUrl: string) {
     try {
@@ -47,11 +52,20 @@ export function updateSpellCheckerLocales() {
 
 export function getDeeplinkingURL(args: string[]) {
     if (Array.isArray(args) && args.length) {
-    // deeplink urls should always be the last argument, but may not be the first (i.e. Windows with the app already running)
+        // deeplink urls should always be the last argument, but may not be the first (i.e. Windows with the app already running)
         const url = args[args.length - 1];
-        const protocol = isDev ? 'mattermost-dev' : mainProtocol;
-        if (url && protocol && url.startsWith(protocol) && isValidURI(url)) {
-            return url;
+
+        // In dev mode, check for dev protocols
+        if (isDev) {
+            const devProtocols = registeredSchemes.map((s) => `${s}-dev`);
+            if (url && devProtocols.some((p) => url.startsWith(p)) && isValidURI(url)) {
+                return url;
+            }
+        } else {
+            // In production, check all registered schemes (okrbest, mattermost)
+            if (url && registeredSchemes.some((s) => url.startsWith(`${s}://`)) && isValidURI(url)) {
+                return url;
+            }
         }
     }
     return undefined;
