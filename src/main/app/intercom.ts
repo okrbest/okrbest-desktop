@@ -94,7 +94,7 @@ export function handleMainWindowIsShown() {
 export function handleWelcomeScreenModal(prefillURL?: string) {
     log.debug('handleWelcomeScreenModal');
 
-    const html = 'mattermost-desktop://renderer/welcomeScreen.html';
+    const html = 'okrbest-desktop://renderer/welcomeScreen.html';
 
     const preload = getLocalPreload('internalAPI.js');
 
@@ -192,7 +192,7 @@ export function handleShowSettingsModal() {
 
     ModalManager.addModal(
         ModalConstants.SETTINGS_MODAL,
-        'mattermost-desktop://renderer/settings.html',
+        'okrbest-desktop://renderer/settings.html',
         getLocalPreload('internalAPI.js'),
         null,
         mainWindow,

@@ -38,7 +38,7 @@ export class LoadingScreen {
             }},
         );
         performanceMonitor.registerView(`LoadingScreen-${parent.webContents.id}`, this.view.webContents);
-        this.view.webContents.loadURL('mattermost-desktop://renderer/loadingScreen.html');
+        this.view.webContents.loadURL('okrbest-desktop://renderer/loadingScreen.html');
 
         parent.contentView.on('bounds-changed', this.setBounds);
         ipcMain.on(LOADING_SCREEN_ANIMATION_FINISHED, this.handleAnimationFinished);
