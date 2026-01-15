@@ -52,3 +52,5 @@ Our [developer guide](https://docs.okrbest.com/contribute/desktop/) has detailed
 This software is a derivative work based on Mattermost Desktop, originally developed by Mattermost, Inc. and contributors under the Apache License 2.0.
 
 See [LICENSE.txt](LICENSE.txt) for license information.
+
+ci.yaml 임시 테스트
