@@ -22,8 +22,6 @@ import {ServerInfo} from 'main/server/serverInfo';
 import type {RemoteInfo} from 'types/server';
 import type {Boundaries} from 'types/utils';
 
-import {mainProtocol} from './initialize';
-
 import {protocols} from '../../../electron-builder.json';
 
 const log = new Logger('App.Utils');
@@ -61,11 +59,9 @@ export function getDeeplinkingURL(args: string[]) {
             if (url && devProtocols.some((p) => url.startsWith(p)) && isValidURI(url)) {
                 return url;
             }
-        } else {
+        } else if (url && registeredSchemes.some((s) => url.startsWith(`${s}://`)) && isValidURI(url)) {
             // In production, check all registered schemes (okrbest, mattermost)
-            if (url && registeredSchemes.some((s) => url.startsWith(`${s}://`)) && isValidURI(url)) {
-                return url;
-            }
+            return url;
         }
     }
     return undefined;
