@@ -60,7 +60,7 @@ jest.mock('registry-js', () => {
                 }
 
                 // For boolean settings, return the value based on the name parameter
-                if (key.includes('SOFTWARE\\Policies\\Mattermost')) {
+                if (key.includes('SOFTWARE\\Policies\\OKRBest')) {
                     return [
                         {
                             name: 'EnableServerManagement',
@@ -88,7 +88,7 @@ jest.mock('registry-js', () => {
                 }
 
                 // For boolean settings, return the value based on the name parameter
-                if (key.includes('SOFTWARE\\Policies\\Mattermost')) {
+                if (key.includes('SOFTWARE\\Policies\\OKRBest')) {
                     return [
                         {
                             name: 'EnableServerManagement',
@@ -102,7 +102,7 @@ jest.mock('registry-js', () => {
                 }
                 return [];
             } else if (hive === 'conflict-hive-lm') {
-                if (key.includes('SOFTWARE\\Policies\\Mattermost')) {
+                if (key.includes('SOFTWARE\\Policies\\OKRBest')) {
                     return [
                         {
                             name: 'EnableServerManagement',
@@ -112,7 +112,7 @@ jest.mock('registry-js', () => {
                 }
                 return [];
             } else if (hive === 'conflict-hive-cu') {
-                if (key.includes('SOFTWARE\\Policies\\Mattermost')) {
+                if (key.includes('SOFTWARE\\Policies\\OKRBest')) {
                     return [
                         {
                             name: 'EnableServerManagement',
@@ -122,7 +122,7 @@ jest.mock('registry-js', () => {
                 }
                 return [];
             } else if (hive === 'undefined-hive-lm') {
-                if (key.includes('SOFTWARE\\Policies\\Mattermost')) {
+                if (key.includes('SOFTWARE\\Policies\\OKRBest')) {
                     return [
                         {
                             name: 'EnableServerManagement',
@@ -135,7 +135,7 @@ jest.mock('registry-js', () => {
                 // Return undefined/empty for CU
                 return [];
             } else if (hive === 'mixed-undefined-lm') {
-                if (key.includes('SOFTWARE\\Policies\\Mattermost')) {
+                if (key.includes('SOFTWARE\\Policies\\OKRBest')) {
                     return [
                         {
                             name: 'EnableServerManagement',
@@ -145,12 +145,12 @@ jest.mock('registry-js', () => {
                 }
                 return [];
             } else if (hive === 'mixed-undefined-cu') {
-                if (key.includes('SOFTWARE\\Policies\\Mattermost')) {
+                if (key.includes('SOFTWARE\\Policies\\OKRBest')) {
                     return undefined; // Explicitly undefined
                 }
                 return [];
             } else if (hive === 'error-hive-lm') {
-                if (key.includes('SOFTWARE\\Policies\\Mattermost')) {
+                if (key.includes('SOFTWARE\\Policies\\OKRBest')) {
                     return [
                         {
                             name: 'EnableServerManagement',
@@ -160,7 +160,7 @@ jest.mock('registry-js', () => {
                 }
                 return [];
             } else if (hive === 'error-hive-cu') {
-                if (key.includes('SOFTWARE\\Policies\\Mattermost')) {
+                if (key.includes('SOFTWARE\\Policies\\OKRBest')) {
                     throw new Error('Registry access error in CU');
                 }
                 return [];
