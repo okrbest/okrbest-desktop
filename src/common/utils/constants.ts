@@ -58,6 +58,7 @@ export const URLValidationStatus = {
     PreAuthRequired: 'PREAUTH_REQUIRED',
     BasicAuthRequired: 'BASICAUTH_REQUIRED',
     ClientCertRequired: 'CLIENTCERT_REQUIRED',
+    MagicLink: 'MAGIC_LINK',
 };
 
 export const nonTeamUrlPaths = [
