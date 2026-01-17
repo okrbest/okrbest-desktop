@@ -46,7 +46,11 @@
 
 GitHub 레포지토리 Settings → Secrets and variables → Actions에서 새 이름으로 등록합니다.
 
-#### 2.1 Windows 코드 서명 (Azure)
+#### 2.1 Windows 코드 서명 (Azure Trusted Signing)
+
+이 프로젝트는 **Azure Trusted Signing** (구 Azure Code Signing)을 사용하여 Windows 앱에 서명합니다.
+
+##### 필요한 GitHub Secrets
 
 | 현재 | 변경 | 사용 파일 |
 |------|------|----------|
@@ -55,6 +59,97 @@ GitHub 레포지토리 Settings → Secrets and variables → Actions에서 새 
 | `MM_DESKTOP_MSI_INSTALLER_AZURE_TENANT_ID` | `OKRBEST_DESKTOP_MSI_INSTALLER_AZURE_TENANT_ID` | 4개 파일 |
 
 **사용 위치:** build-for-pr.yml, nightly-main.yml, nightly-rainforest.yml, release.yaml
+
+##### 현재 프로젝트 설정 (electron-builder.json)
+
+```json
+{
+  "win": {
+    "signExts": [".dll", ".node"],
+    "azureSignOptions": {
+      "certificateProfileName": "okrbest-desktop-app",
+      "codeSigningAccountName": "DesktopAppCodeSigning",
+      "endpoint": "https://eus.codesigning.azure.net",
+      "publisherName": "CN=\"OKR Best Inc.\", O=\"OKR Best Inc.\", L=Gyeonggi-do, S=Gyeonggi-do, C=KR"
+    }
+  }
+}
+```
+
+##### Azure Trusted Signing 설정 방법
+
+**1단계: Azure Portal에서 리소스 생성**
+
+1. [Azure Portal](https://portal.azure.com) 접속
+2. "Trusted Signing accounts" 검색 → 생성
+3. 필요한 정보 입력:
+   - **Account name**: `DesktopAppCodeSigning`
+   - **Region**: East US (`https://eus.codesigning.azure.net`)
+   - **SKU**: Basic
+
+**2단계: 인증서 프로필 생성**
+
+1. Trusted Signing 계정 → "Certificate profiles" 메뉴
+2. "Add" 클릭 → 프로필 생성:
+   - **Profile name**: `okrbest-desktop-app`
+   - **Certificate type**: Public Trust
+   - **Subject DN**: `CN="OKR Best Inc.", O="OKR Best Inc.", L=Gyeonggi-do, S=Gyeonggi-do, C=KR`
+
+**3단계: ID 검증**
+
+1. "Identity validation" 메뉴 → 조직 정보 등록
+2. 필요 서류: 사업자등록증, 법인등기부등본 등
+3. Microsoft 검증 완료 대기 (1-5 영업일)
+
+**4단계: Azure AD 앱 등록 (서비스 주체)**
+
+1. Azure Portal → "Microsoft Entra ID" → "App registrations"
+2. "New registration" 클릭:
+   - **Name**: `OKRBest-Desktop-CodeSigning`
+3. 생성 후 다음 값 복사:
+   - **Application (client) ID** → `AZURE_CLIENT_ID`
+   - **Directory (tenant) ID** → `AZURE_TENANT_ID`
+4. "Certificates & secrets" → "New client secret" 생성:
+   - **Value** → `AZURE_CLIENT_SECRET`
+
+**5단계: RBAC 권한 부여**
+
+1. Trusted Signing 계정 → "Access control (IAM)"
+2. "Add role assignment" 클릭:
+   - **Role**: `Trusted Signing Certificate Profile Signer`
+   - **Members**: 4단계에서 생성한 앱 선택
+
+**6단계: GitHub Secrets 등록**
+
+```
+OKRBEST_DESKTOP_MSI_INSTALLER_AZURE_CLIENT_ID = <Application (client) ID>
+OKRBEST_DESKTOP_MSI_INSTALLER_AZURE_CLIENT_SECRET = <Client secret value>
+OKRBEST_DESKTOP_MSI_INSTALLER_AZURE_TENANT_ID = <Directory (tenant) ID>
+```
+
+##### 워크플로우에서 사용
+
+```yaml
+- name: ci/build
+  env:
+    AZURE_CLIENT_ID: ${{ secrets.OKRBEST_DESKTOP_MSI_INSTALLER_AZURE_CLIENT_ID }}
+    AZURE_CLIENT_SECRET: ${{ secrets.OKRBEST_DESKTOP_MSI_INSTALLER_AZURE_CLIENT_SECRET }}
+    AZURE_TENANT_ID: ${{ secrets.OKRBEST_DESKTOP_MSI_INSTALLER_AZURE_TENANT_ID }}
+  run: npm run package:windows
+```
+
+##### CI에서 서명 비활성화 (테스트용)
+
+`ci.yaml`에서는 비용 절감을 위해 서명을 비활성화합니다:
+
+```bash
+jq '.win.azureSignOptions=null' electron-builder.json > /tmp/electron-builder.json && cp /tmp/electron-builder.json .
+```
+
+##### 참고 자료
+
+- [Azure Trusted Signing 문서](https://learn.microsoft.com/en-us/azure/trusted-signing/)
+- [electron-builder Azure Sign 옵션](https://www.electron.build/code-signing#azure-trusted-signing)
 
 #### 2.2 macOS Developer ID 코드 서명
 
