@@ -46,110 +46,92 @@
 
 GitHub 레포지토리 Settings → Secrets and variables → Actions에서 새 이름으로 등록합니다.
 
-#### 2.1 Windows 코드 서명 (Azure Trusted Signing)
+#### 2.1 Windows 코드 서명 (SSL.com eSigner)
 
-이 프로젝트는 **Azure Trusted Signing** (구 Azure Code Signing)을 사용하여 Windows 앱에 서명합니다.
+이 프로젝트는 **SSL.com eSigner** (클라우드 코드 서명)를 사용하여 Windows 앱에 서명합니다.
 
-##### 필요한 GitHub Secrets
+> **참고:** Azure Trusted Signing Public Trust는 한국 법인을 지원하지 않아 SSL.com OV 인증서를 사용합니다.
 
-| 현재 | 변경 | 사용 파일 |
-|------|------|----------|
-| `MM_DESKTOP_MSI_INSTALLER_AZURE_CLIENT_ID` | `OKRBEST_DESKTOP_MSI_INSTALLER_AZURE_CLIENT_ID` | 4개 파일 |
-| `MM_DESKTOP_MSI_INSTALLER_AZURE_CLIENT_SECRET` | `OKRBEST_DESKTOP_MSI_INSTALLER_AZURE_CLIENT_SECRET` | 4개 파일 |
-| `MM_DESKTOP_MSI_INSTALLER_AZURE_TENANT_ID` | `OKRBEST_DESKTOP_MSI_INSTALLER_AZURE_TENANT_ID` | 4개 파일 |
+##### 현재 상태
 
-**사용 위치:** build-for-pr.yml, nightly-main.yml, nightly-rainforest.yml, release.yaml
-
-##### 현재 프로젝트 설정 (electron-builder.json)
+현재는 **서명 비활성화** 상태입니다. SSL.com 인증서 구매 후 활성화할 수 있습니다.
 
 ```json
 {
   "win": {
-    "signExts": [".dll", ".node"],
-    "azureSignOptions": {
-      "certificateProfileName": "okrbest-desktop-app",
-      "codeSigningAccountName": "okrbestdesktopsigning",
-      "endpoint": "https://eus.codesigning.azure.net",
-      "publisherName": "CN=\"OKR Best Inc.\", O=\"OKR Best Inc.\", L=Gyeonggi-do, S=Gyeonggi-do, C=KR"
-    }
+    "sign": false
   }
 }
 ```
 
-##### Azure Trusted Signing 설정 방법
+##### 필요한 GitHub Secrets (SSL.com eSigner 사용 시)
 
-**1단계: Azure Portal에서 리소스 생성**
+| Secret 이름 | 용도 |
+|------------|------|
+| `SSLCOM_USERNAME` | SSL.com 계정 사용자명 |
+| `SSLCOM_PASSWORD` | SSL.com 계정 비밀번호 |
+| `SSLCOM_CREDENTIAL_ID` | eSigner Credential ID |
+| `SSLCOM_TOTP_SECRET` | 2FA TOTP 시크릿 |
 
-1. [Azure Portal](https://portal.azure.com) 접속
-2. "Trusted Signing accounts" 검색 → 생성
-3. 필요한 정보 입력:
-   - **Account name**: `okrbestdesktopsigning`
-   - **Region**: East US (`https://eus.codesigning.azure.net`)
-   - **SKU**: Basic
+##### SSL.com eSigner 설정 방법
 
-**2단계: 인증서 프로필 생성**
+**1단계: SSL.com OV 코드 서명 인증서 구매**
 
-1. Trusted Signing 계정 → "Certificate profiles" 메뉴
-2. "Add" 클릭 → 프로필 생성:
-   - **Profile name**: `okrbest-desktop-app`
-   - **Certificate type**: Public Trust
-   - **Subject DN**: `CN="OKR Best Inc.", O="OKR Best Inc.", L=Gyeonggi-do, S=Gyeonggi-do, C=KR`
+1. [SSL.com](https://www.ssl.com/certificates/code-signing/) 접속
+2. OV Code Signing 인증서 구매 (~$200-300/년)
+3. 조직 검증 완료 (사업자등록증 등 제출)
 
-**3단계: ID 검증**
+**2단계: eSigner 활성화**
 
-1. "Identity validation" 메뉴 → 조직 정보 등록
-2. 필요 서류: 사업자등록증, 법인등기부등본 등
-3. Microsoft 검증 완료 대기 (1-5 영업일)
+1. SSL.com 대시보드 → 인증서 선택
+2. "eSigner" 옵션 활성화
+3. 2FA 설정 (TOTP)
+4. Credential ID 확인
 
-**4단계: Azure AD 앱 등록 (서비스 주체)**
-
-1. Azure Portal → "Microsoft Entra ID" → "App registrations"
-2. "New registration" 클릭:
-   - **Name**: `OKRBest-Desktop-CodeSigning`
-3. 생성 후 다음 값 복사:
-   - **Application (client) ID** → `AZURE_CLIENT_ID`
-   - **Directory (tenant) ID** → `AZURE_TENANT_ID`
-4. "Certificates & secrets" → "New client secret" 생성:
-   - **Value** → `AZURE_CLIENT_SECRET`
-
-**5단계: RBAC 권한 부여**
-
-1. Trusted Signing 계정 → "Access control (IAM)"
-2. "Add role assignment" 클릭:
-   - **Role**: `Trusted Signing Certificate Profile Signer`
-   - **Members**: 4단계에서 생성한 앱 선택
-
-**6단계: GitHub Secrets 등록**
+**3단계: GitHub Secrets 등록**
 
 ```
-OKRBEST_DESKTOP_MSI_INSTALLER_AZURE_CLIENT_ID = <Application (client) ID>
-OKRBEST_DESKTOP_MSI_INSTALLER_AZURE_CLIENT_SECRET = <Client secret value>
-OKRBEST_DESKTOP_MSI_INSTALLER_AZURE_TENANT_ID = <Directory (tenant) ID>
+SSLCOM_USERNAME = <SSL.com 사용자명>
+SSLCOM_PASSWORD = <SSL.com 비밀번호>
+SSLCOM_CREDENTIAL_ID = <eSigner Credential ID>
+SSLCOM_TOTP_SECRET = <TOTP Secret Key>
 ```
 
 ##### 워크플로우에서 사용
 
+SSL.com eSigner는 빌드 후 별도 단계에서 서명합니다:
+
 ```yaml
-- name: ci/build
-  env:
-    AZURE_CLIENT_ID: ${{ secrets.OKRBEST_DESKTOP_MSI_INSTALLER_AZURE_CLIENT_ID }}
-    AZURE_CLIENT_SECRET: ${{ secrets.OKRBEST_DESKTOP_MSI_INSTALLER_AZURE_CLIENT_SECRET }}
-    AZURE_TENANT_ID: ${{ secrets.OKRBEST_DESKTOP_MSI_INSTALLER_AZURE_TENANT_ID }}
+# 1. 빌드 (서명 없이)
+- name: Build Windows
   run: npm run package:windows
+
+# 2. SSL.com eSigner로 서명
+- name: Sign with SSL.com eSigner
+  uses: sslcom/actions-codesigner@develop
+  with:
+    command: sign
+    username: ${{ secrets.SSLCOM_USERNAME }}
+    password: ${{ secrets.SSLCOM_PASSWORD }}
+    credential_id: ${{ secrets.SSLCOM_CREDENTIAL_ID }}
+    totp_secret: ${{ secrets.SSLCOM_TOTP_SECRET }}
+    file_path: release/*.exe
+    output_path: release/signed
 ```
 
-##### CI에서 서명 비활성화 (테스트용)
+##### 서명 없이 배포 시 영향
 
-`ci.yaml`에서는 비용 절감을 위해 서명을 비활성화합니다:
-
-```bash
-jq '.win.azureSignOptions=null' electron-builder.json > /tmp/electron-builder.json && cp /tmp/electron-builder.json .
-```
+| 항목 | 영향 |
+|------|------|
+| SmartScreen | "Windows가 PC를 보호했습니다" 경고 표시 |
+| 사용자 경험 | "추가 정보" → "실행" 클릭 필요 |
+| 기업 환경 | IT 정책으로 설치 차단 가능 |
 
 ##### 참고 자료
 
-- [Azure Trusted Signing 문서](https://learn.microsoft.com/en-us/azure/trusted-signing/)
-- [electron-builder Azure Sign 옵션](https://www.electron.build/code-signing#azure-trusted-signing)
+- [SSL.com Code Signing](https://www.ssl.com/certificates/code-signing/)
+- [SSL.com eSigner 가이드](https://www.ssl.com/guide/remote-ev-code-signing-with-esigner/)
+- [sslcom/actions-codesigner GitHub Action](https://github.com/SSLcom/codesigner-samples)
 
 #### 2.2 macOS Developer ID 코드 서명
 

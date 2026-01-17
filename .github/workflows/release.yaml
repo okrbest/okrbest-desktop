@@ -98,12 +98,20 @@ jobs:
       - name: release/build
         shell: powershell
         env:
-          MM_WIN_INSTALLERS: 1
-          AZURE_CLIENT_ID: ${{ secrets.MM_DESKTOP_MSI_INSTALLER_AZURE_CLIENT_ID }}
-          AZURE_CLIENT_SECRET: ${{ secrets.MM_DESKTOP_MSI_INSTALLER_AZURE_CLIENT_SECRET }}
-          AZURE_TENANT_ID: ${{ secrets.MM_DESKTOP_MSI_INSTALLER_AZURE_TENANT_ID }}
+          OKRBEST_WIN_INSTALLERS: 1
         run: |
           npm run package:windows
+      # TODO: SSL.com eSigner 서명 단계 추가 예정
+      # - name: release/sign-windows
+      #   uses: sslcom/actions-codesigner@develop
+      #   with:
+      #     command: sign
+      #     username: ${{ secrets.SSLCOM_USERNAME }}
+      #     password: ${{ secrets.SSLCOM_PASSWORD }}
+      #     credential_id: ${{ secrets.SSLCOM_CREDENTIAL_ID }}
+      #     totp_secret: ${{ secrets.SSLCOM_TOTP_SECRET }}
+      #     file_path: release/*.exe
+      #     output_path: release/signed
       - name: release/package
         run: |
           mkdir -p ./build/win-release
