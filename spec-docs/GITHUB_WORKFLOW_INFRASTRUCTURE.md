@@ -68,7 +68,7 @@ GitHub 레포지토리 Settings → Secrets and variables → Actions에서 새 
     "signExts": [".dll", ".node"],
     "azureSignOptions": {
       "certificateProfileName": "okrbest-desktop-app",
-      "codeSigningAccountName": "DesktopAppCodeSigning",
+      "codeSigningAccountName": "okrbestdesktopsigning",
       "endpoint": "https://eus.codesigning.azure.net",
       "publisherName": "CN=\"OKR Best Inc.\", O=\"OKR Best Inc.\", L=Gyeonggi-do, S=Gyeonggi-do, C=KR"
     }
@@ -83,7 +83,7 @@ GitHub 레포지토리 Settings → Secrets and variables → Actions에서 새 
 1. [Azure Portal](https://portal.azure.com) 접속
 2. "Trusted Signing accounts" 검색 → 생성
 3. 필요한 정보 입력:
-   - **Account name**: `DesktopAppCodeSigning`
+   - **Account name**: `okrbestdesktopsigning`
    - **Region**: East US (`https://eus.codesigning.azure.net`)
    - **SKU**: Basic
 
