@@ -94,9 +94,9 @@ jobs:
     with:
       runs-on: ${{ matrix.environment.runner }}
       cmt: true
-      MM_TEST_SERVER_URL: ${{ matrix.server.url }}
+      OKRBEST_TEST_SERVER_URL: ${{ matrix.server.url }}
       DESKTOP_VERSION: ${{ inputs.DESKTOP_VERSION }}
-      MM_SERVER_VERSION: ${{ matrix.server.version }}
+      OKRBEST_SERVER_VERSION: ${{ matrix.server.version }}
       TYPE: "CMT"
 
   # We need to duplicate here in order to set the proper commit status
