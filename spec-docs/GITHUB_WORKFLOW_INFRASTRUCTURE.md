@@ -9,15 +9,201 @@
 | 구분 | 항목 | 수량 |
 |------|------|------|
 | AWS S3 버킷 | 릴리스, Nightly, E2E 리포트 | 3개 |
-| GitHub Secrets | 인증, 서명, API 키 | 20+개 |
+| GitHub Secrets | 인증, 서명, API 키 | 25개 |
+| 환경변수 (코드 참조) | 빌드/테스트 설정 | 6개 |
+| 워크플로우 파일 | 수정 필요 | 8개 |
+| 코드 파일 | 환경변수 참조 | 2개 |
 | 외부 Actions | Mattermost 알림 | 1개 |
 | Webhook | 릴리스/Nightly 알림 | 2개 |
 
 ---
 
-## 1️⃣ AWS S3 버킷
+## 🔄 작업 순서
 
-### 1.1 릴리스 배포 버킷
+### Phase 1: 코드 파일 수정 (환경변수 참조)
+
+코드에서 직접 참조하는 환경변수를 먼저 수정해야 합니다.
+
+#### 1.1 webpack.config.base.js
+
+| 라인 | 현재 | 변경 |
+|------|------|------|
+| 22 | `MM_DESKTOP_BUILD_SKIPONBOARDINGSCREENS` | `OKRBEST_DESKTOP_BUILD_SKIPONBOARDINGSCREENS` |
+| 23 | `MM_DESKTOP_BUILD_DISABLEGPU` | `OKRBEST_DESKTOP_BUILD_DISABLEGPU` |
+| 24 | `MM_DESKTOP_BUILD_SENTRYDSN` | `OKRBEST_DESKTOP_BUILD_SENTRYDSN` |
+
+#### 1.2 e2e/modules/environment.js
+
+| 라인 | 현재 | 변경 |
+|------|------|------|
+| 36 | `MM_TEST_SERVER_URL` | `OKRBEST_TEST_SERVER_URL` |
+| 232 | `MM_TEST_USER_NAME` | `OKRBEST_TEST_USER_NAME` |
+| 233 | `MM_TEST_PASSWORD` | `OKRBEST_TEST_PASSWORD` |
+
+---
+
+### Phase 2: GitHub Secrets 등록 (25개)
+
+GitHub 레포지토리 Settings → Secrets and variables → Actions에서 새 이름으로 등록합니다.
+
+#### 2.1 Windows 코드 서명 (Azure)
+
+| 현재 | 변경 | 사용 파일 |
+|------|------|----------|
+| `MM_DESKTOP_MSI_INSTALLER_AZURE_CLIENT_ID` | `OKRBEST_DESKTOP_MSI_INSTALLER_AZURE_CLIENT_ID` | 4개 파일 |
+| `MM_DESKTOP_MSI_INSTALLER_AZURE_CLIENT_SECRET` | `OKRBEST_DESKTOP_MSI_INSTALLER_AZURE_CLIENT_SECRET` | 4개 파일 |
+| `MM_DESKTOP_MSI_INSTALLER_AZURE_TENANT_ID` | `OKRBEST_DESKTOP_MSI_INSTALLER_AZURE_TENANT_ID` | 4개 파일 |
+
+**사용 위치:** build-for-pr.yml, nightly-main.yml, nightly-rainforest.yml, release.yaml
+
+#### 2.2 macOS Developer ID 코드 서명
+
+| 현재 | 변경 | 사용 파일 |
+|------|------|----------|
+| `MM_DESKTOP_MAC_INSTALLER_CSC_KEY_PASSWORD` | `OKRBEST_DESKTOP_MAC_INSTALLER_CSC_KEY_PASSWORD` | 4개 파일 |
+| `MM_DESKTOP_MAC_INSTALLER_CSC_LINK` | `OKRBEST_DESKTOP_MAC_INSTALLER_CSC_LINK` | 4개 파일 |
+| `MM_DESKTOP_MAC_INSTALLER_DMG_PROFILE` | `OKRBEST_DESKTOP_MAC_INSTALLER_DMG_PROFILE` | 4개 파일 |
+
+**사용 위치:** build-for-pr.yml, nightly-main.yml, nightly-rainforest.yml, release.yaml
+
+#### 2.3 macOS App Store Connect
+
+| 현재 | 변경 | 사용 파일 |
+|------|------|----------|
+| `MM_DESKTOP_MAC_APP_STORE_MACOS_API_KEY_ID` | `OKRBEST_DESKTOP_MAC_APP_STORE_MACOS_API_KEY_ID` | 5개 파일 |
+| `MM_DESKTOP_MAC_APP_STORE_MACOS_API_KEY` | `OKRBEST_DESKTOP_MAC_APP_STORE_MACOS_API_KEY` | 5개 파일 |
+| `MM_DESKTOP_MAC_APP_STORE_MACOS_API_ISSUER_ID` | `OKRBEST_DESKTOP_MAC_APP_STORE_MACOS_API_ISSUER_ID` | 5개 파일 |
+| `MM_DESKTOP_MAC_APP_STORE_MAS_PROFILE` | `OKRBEST_DESKTOP_MAC_APP_STORE_MAS_PROFILE` | 2개 파일 |
+| `MM_DESKTOP_MAC_APP_STORE_CSC_KEY_PASSWORD` | `OKRBEST_DESKTOP_MAC_APP_STORE_CSC_KEY_PASSWORD` | 2개 파일 |
+| `MM_DESKTOP_MAC_APP_STORE_CSC_LINK` | `OKRBEST_DESKTOP_MAC_APP_STORE_CSC_LINK` | 2개 파일 |
+
+**사용 위치:** build-for-pr.yml, nightly-main.yml, nightly-rainforest.yml, release.yaml, release-mas.yaml
+
+#### 2.4 AWS 자격증명
+
+| 현재 | 변경 | 사용 파일 |
+|------|------|----------|
+| `MM_DESKTOP_RELEASE_AWS_ACCESS_KEY_ID` | `OKRBEST_DESKTOP_RELEASE_AWS_ACCESS_KEY_ID` | 2개 파일 |
+| `MM_DESKTOP_RELEASE_AWS_SECRET_ACCESS_KEY` | `OKRBEST_DESKTOP_RELEASE_AWS_SECRET_ACCESS_KEY` | 2개 파일 |
+| `MM_DESKTOP_DAILY_AWS_ACCESS_KEY_ID` | `OKRBEST_DESKTOP_DAILY_AWS_ACCESS_KEY_ID` | 1개 파일 |
+| `MM_DESKTOP_DAILY_AWS_SECRET_ACCESS_KEY` | `OKRBEST_DESKTOP_DAILY_AWS_SECRET_ACCESS_KEY` | 1개 파일 |
+
+**사용 위치:** nightly-main.yml, release.yaml, nightly-rainforest.yml
+
+#### 2.5 E2E 테스트
+
+| 현재 | 변경 | 사용 파일 |
+|------|------|----------|
+| `MM_DESKTOP_E2E_USER_NAME` | `OKRBEST_DESKTOP_E2E_USER_NAME` | 1개 파일 |
+| `MM_DESKTOP_E2E_USER_CREDENTIALS` | `OKRBEST_DESKTOP_E2E_USER_CREDENTIALS` | 1개 파일 |
+| `MM_DESKTOP_E2E_TEST_CYCLE_LINK_PREFIX` | `OKRBEST_DESKTOP_E2E_TEST_CYCLE_LINK_PREFIX` | 1개 파일 |
+| `MM_DESKTOP_E2E_AWS_ACCESS_KEY_ID` | `OKRBEST_DESKTOP_E2E_AWS_ACCESS_KEY_ID` | 1개 파일 |
+| `MM_DESKTOP_E2E_AWS_SECRET_ACCESS_KEY` | `OKRBEST_DESKTOP_E2E_AWS_SECRET_ACCESS_KEY` | 1개 파일 |
+| `MM_DESKTOP_E2E_WEBHOOK_URL` | `OKRBEST_DESKTOP_E2E_WEBHOOK_URL` | 1개 파일 |
+| `MM_DESKTOP_E2E_ZEPHYR_API_KEY` | `OKRBEST_DESKTOP_E2E_ZEPHYR_API_KEY` | 1개 파일 |
+
+**사용 위치:** e2e-functional-template.yml
+
+#### 2.6 Webhook
+
+| 현재 | 변경 | 사용 파일 |
+|------|------|----------|
+| `MM_DESKTOP_NIGHTLY_WEBHOOK_URL` | `OKRBEST_DESKTOP_NIGHTLY_WEBHOOK_URL` | 1개 파일 |
+| `MM_DESKTOP_RELEASE_WEBHOOK_URL` | `OKRBEST_DESKTOP_RELEASE_WEBHOOK_URL` | 1개 파일 |
+
+**사용 위치:** nightly-main.yml, release.yaml
+
+---
+
+### Phase 3: 워크플로우 파일 수정 (8개)
+
+#### 3.1 build-for-pr.yml
+
+| 라인 | 현재 | 변경 |
+|------|------|------|
+| 124 | `MM_WIN_INSTALLERS: 1` | `OKRBEST_WIN_INSTALLERS: 1` |
+| 125 | `MM_DESKTOP_MSI_INSTALLER_AZURE_CLIENT_ID` | `OKRBEST_DESKTOP_MSI_INSTALLER_AZURE_CLIENT_ID` |
+| 126 | `MM_DESKTOP_MSI_INSTALLER_AZURE_CLIENT_SECRET` | `OKRBEST_DESKTOP_MSI_INSTALLER_AZURE_CLIENT_SECRET` |
+| 127 | `MM_DESKTOP_MSI_INSTALLER_AZURE_TENANT_ID` | `OKRBEST_DESKTOP_MSI_INSTALLER_AZURE_TENANT_ID` |
+| 166 | `MM_DESKTOP_MAC_APP_STORE_MACOS_API_KEY_ID` | `OKRBEST_DESKTOP_MAC_APP_STORE_MACOS_API_KEY_ID` |
+| 167 | `MM_DESKTOP_MAC_APP_STORE_MACOS_API_KEY` | `OKRBEST_DESKTOP_MAC_APP_STORE_MACOS_API_KEY` |
+| 169 | `MM_DESKTOP_MAC_APP_STORE_MACOS_API_ISSUER_ID` | `OKRBEST_DESKTOP_MAC_APP_STORE_MACOS_API_ISSUER_ID` |
+| 171 | `MM_DESKTOP_MAC_INSTALLER_CSC_KEY_PASSWORD` | `OKRBEST_DESKTOP_MAC_INSTALLER_CSC_KEY_PASSWORD` |
+| 172 | `MM_DESKTOP_MAC_INSTALLER_CSC_LINK` | `OKRBEST_DESKTOP_MAC_INSTALLER_CSC_LINK` |
+| 173 | `MM_DESKTOP_MAC_INSTALLER_DMG_PROFILE` | `OKRBEST_DESKTOP_MAC_INSTALLER_DMG_PROFILE` |
+
+#### 3.2 nightly-main.yml
+
+| 라인 | 현재 | 변경 |
+|------|------|------|
+| 23 | `MM_WIN_INSTALLERS: 1` | `OKRBEST_WIN_INSTALLERS: 1` |
+| 89 | `MM_WIN_INSTALLERS: 1` | `OKRBEST_WIN_INSTALLERS: 1` |
+| 90-92 | `MM_DESKTOP_MSI_INSTALLER_*` | `OKRBEST_DESKTOP_MSI_INSTALLER_*` |
+| 111-117 | `MM_DESKTOP_MAC_APP_STORE_*` | `OKRBEST_DESKTOP_MAC_APP_STORE_*` |
+| 171-178 | `MM_DESKTOP_MAC_*` | `OKRBEST_DESKTOP_MAC_*` |
+| 213-214 | `MM_DESKTOP_RELEASE_AWS_*` | `OKRBEST_DESKTOP_RELEASE_AWS_*` |
+| 258 | `MM_DESKTOP_NIGHTLY_WEBHOOK_URL` | `OKRBEST_DESKTOP_NIGHTLY_WEBHOOK_URL` |
+
+#### 3.3 nightly-rainforest.yml
+
+| 라인 | 현재 | 변경 |
+|------|------|------|
+| 23 | `MM_DESKTOP_BUILD_DISABLEGPU: true` | `OKRBEST_DESKTOP_BUILD_DISABLEGPU: true` |
+| 24 | `MM_DESKTOP_BUILD_SKIPONBOARDINGSCREENS: true` | `OKRBEST_DESKTOP_BUILD_SKIPONBOARDINGSCREENS: true` |
+| 25 | `MM_WIN_INSTALLERS: 1` | `OKRBEST_WIN_INSTALLERS: 1` |
+| 56-59 | `MM_DESKTOP_MSI_INSTALLER_*` | `OKRBEST_DESKTOP_MSI_INSTALLER_*` |
+| 98-105 | `MM_DESKTOP_MAC_*` | `OKRBEST_DESKTOP_MAC_*` |
+| 137-138 | `MM_DESKTOP_DAILY_AWS_*` | `OKRBEST_DESKTOP_DAILY_AWS_*` |
+
+#### 3.4 release.yaml
+
+| 라인 | 현재 | 변경 |
+|------|------|------|
+| 15 | `MM_WIN_INSTALLERS: 1` | `OKRBEST_WIN_INSTALLERS: 1` |
+| 31 | `MM_DESKTOP_RELEASE_WEBHOOK_URL` | `OKRBEST_DESKTOP_RELEASE_WEBHOOK_URL` |
+| 101 | `MM_WIN_INSTALLERS: 1` | `OKRBEST_WIN_INSTALLERS: 1` |
+| 102-104 | `MM_DESKTOP_MSI_INSTALLER_*` | `OKRBEST_DESKTOP_MSI_INSTALLER_*` |
+| 146-153 | `MM_DESKTOP_MAC_*` | `OKRBEST_DESKTOP_MAC_*` |
+| 182-183 | `MM_DESKTOP_RELEASE_AWS_*` | `OKRBEST_DESKTOP_RELEASE_AWS_*` |
+| 249 | `MM_DESKTOP_RELEASE_WEBHOOK_URL` | `OKRBEST_DESKTOP_RELEASE_WEBHOOK_URL` |
+
+#### 3.5 release-mas.yaml
+
+| 라인 | 현재 | 변경 |
+|------|------|------|
+| 21-27 | `MM_DESKTOP_MAC_APP_STORE_*` | `OKRBEST_DESKTOP_MAC_APP_STORE_*` |
+
+#### 3.6 e2e-functional-template.yml
+
+| 라인 | 현재 | 변경 |
+|------|------|------|
+| 6, 76 | `MM_TEST_SERVER_URL` | `OKRBEST_TEST_SERVER_URL` |
+| 10, 80 | `MM_TEST_USER_NAME` | `OKRBEST_TEST_USER_NAME` |
+| 14, 84 | `MM_TEST_PASSWORD` | `OKRBEST_TEST_PASSWORD` |
+| 42, 113, 136 | `MM_SERVER_VERSION` | `OKRBEST_SERVER_VERSION` |
+| 122-133 | `MM_*` 환경변수/시크릿 | `OKRBEST_*` |
+
+#### 3.7 e2e-functional.yml
+
+| 라인 | 현재 | 변경 |
+|------|------|------|
+| 16 | `MM_TEST_USER_NAME` | `OKRBEST_TEST_USER_NAME` |
+| 20 | `MM_TEST_PASSWORD` | `OKRBEST_TEST_PASSWORD` |
+| 24 | `MM_SERVER_VERSION` | `OKRBEST_SERVER_VERSION` |
+| 76-79 | `MM_*` 환경변수 | `OKRBEST_*` |
+
+#### 3.8 compatibility-matrix-testing.yml
+
+| 라인 | 현재 | 변경 |
+|------|------|------|
+| 97 | `MM_TEST_SERVER_URL` | `OKRBEST_TEST_SERVER_URL` |
+| 99 | `MM_SERVER_VERSION` | `OKRBEST_SERVER_VERSION` |
+
+---
+
+### Phase 4: AWS 인프라 설정
+
+#### 4.1 릴리스 배포 버킷
 
 **현재:** `s3://releases.mattermost.com/desktop/`  
 **변경:** `s3://releases.okrbest.com/desktop/`
@@ -44,7 +230,7 @@ aws s3api put-bucket-policy --bucket releases.okrbest.com --policy '{
 }'
 ```
 
-### 1.2 일일 빌드 버킷 (Rainforest)
+#### 4.2 일일 빌드 버킷 (Rainforest)
 
 **현재:** `s3://mattermost-desktop-daily-builds/`  
 **변경:** `s3://okrbest-desktop-daily-builds/`
@@ -52,7 +238,7 @@ aws s3api put-bucket-policy --bucket releases.okrbest.com --policy '{
 **사용 위치:**
 - `.github/workflows/nightly-rainforest.yml` (line 155)
 
-### 1.3 E2E 테스트 리포트 버킷
+#### 4.3 E2E 테스트 리포트 버킷
 
 **현재:** `mattermost-cypress-report`  
 **변경:** `okrbest-cypress-report`
@@ -62,73 +248,9 @@ aws s3api put-bucket-policy --bucket releases.okrbest.com --policy '{
 
 ---
 
-## 2️⃣ GitHub Secrets
+### Phase 5: 외부 Actions 대체
 
-### 2.1 AWS 자격증명
-
-| Secret 이름 | 용도 | 사용 위치 |
-|------------|------|----------|
-| `MM_DESKTOP_RELEASE_AWS_ACCESS_KEY_ID` | 릴리스 S3 업로드 | release.yaml, nightly-main.yml |
-| `MM_DESKTOP_RELEASE_AWS_SECRET_ACCESS_KEY` | 릴리스 S3 업로드 | release.yaml, nightly-main.yml |
-| `MM_DESKTOP_E2E_AWS_ACCESS_KEY_ID` | E2E 리포트 S3 업로드 | e2e-functional-template.yml |
-| `MM_DESKTOP_E2E_AWS_SECRET_ACCESS_KEY` | E2E 리포트 S3 업로드 | e2e-functional-template.yml |
-
-**권장 변경:**
-```
-MM_DESKTOP_RELEASE_AWS_ACCESS_KEY_ID → OKRBEST_RELEASE_AWS_ACCESS_KEY_ID
-MM_DESKTOP_RELEASE_AWS_SECRET_ACCESS_KEY → OKRBEST_RELEASE_AWS_SECRET_ACCESS_KEY
-MM_DESKTOP_E2E_AWS_ACCESS_KEY_ID → OKRBEST_E2E_AWS_ACCESS_KEY_ID
-MM_DESKTOP_E2E_AWS_SECRET_ACCESS_KEY → OKRBEST_E2E_AWS_SECRET_ACCESS_KEY
-```
-
-### 2.2 Windows 코드 서명
-
-| Secret 이름 | 용도 |
-|------------|------|
-| `MM_DESKTOP_MSI_INSTALLER_PFX_KEY` | PFX 키 |
-| `MM_DESKTOP_MSI_INSTALLER_CSC_KEY_PASSWORD` | 인증서 비밀번호 |
-| `MM_DESKTOP_MSI_INSTALLER_PFX` | PFX 파일 (Base64) |
-| `MM_DESKTOP_MSI_INSTALLER_CSC_LINK` | 인증서 링크 |
-
-**사용 위치:** release.yaml (line 102-105), nightly-main.yml (line 90-93)
-
-### 2.3 macOS 코드 서명 및 App Store
-
-| Secret 이름 | 용도 |
-|------------|------|
-| `MM_DESKTOP_MAC_INSTALLER_CSC_KEY_PASSWORD` | Developer ID 인증서 비밀번호 |
-| `MM_DESKTOP_MAC_INSTALLER_CSC_LINK` | Developer ID 인증서 |
-| `MM_DESKTOP_MAC_INSTALLER_DMG_PROFILE` | DMG 프로비저닝 프로파일 |
-| `MM_DESKTOP_MAC_APP_STORE_MACOS_API_KEY_ID` | App Store Connect API 키 ID |
-| `MM_DESKTOP_MAC_APP_STORE_MACOS_API_KEY` | App Store Connect API 키 |
-| `MM_DESKTOP_MAC_APP_STORE_MACOS_API_ISSUER_ID` | App Store Connect Issuer ID |
-| `MM_DESKTOP_MAC_APP_STORE_CSC_KEY_PASSWORD` | MAS 인증서 비밀번호 |
-| `MM_DESKTOP_MAC_APP_STORE_CSC_LINK` | MAS 인증서 |
-| `MM_DESKTOP_MAC_APP_STORE_MAS_PROFILE` | MAS 프로비저닝 프로파일 |
-
-### 2.4 Webhook 및 API
-
-| Secret 이름 | 용도 |
-|------------|------|
-| `MM_DESKTOP_RELEASE_WEBHOOK_URL` | 릴리스 알림 Webhook |
-| `MM_DESKTOP_NIGHTLY_WEBHOOK_URL` | Nightly 알림 Webhook |
-| `MM_DESKTOP_E2E_WEBHOOK_URL` | E2E 테스트 알림 Webhook |
-| `MATTERMOST_BUILD_GH_TOKEN` | GitHub Release 생성 토큰 |
-
-### 2.5 E2E 테스트
-
-| Secret 이름 | 용도 |
-|------------|------|
-| `MM_DESKTOP_E2E_USER_NAME` | 테스트 사용자 이름 |
-| `MM_DESKTOP_E2E_USER_CREDENTIALS` | 테스트 사용자 비밀번호 |
-| `MM_DESKTOP_E2E_TEST_CYCLE_LINK_PREFIX` | Zephyr 테스트 사이클 링크 |
-| `MM_DESKTOP_E2E_ZEPHYR_API_KEY` | Zephyr API 키 |
-
----
-
-## 3️⃣ 외부 GitHub Actions
-
-### 3.1 Mattermost 알림 Action
+#### 5.1 Mattermost 알림 Action
 
 **현재 사용:**
 ```yaml
@@ -137,7 +259,7 @@ uses: mattermost/action-mattermost-notify@d317daebed2a792679f68fd0248557a8d21d82
 
 **대안 옵션:**
 
-#### 옵션 A: Action 포크
+##### 옵션 A: Action 포크
 ```bash
 # 1. mattermost/action-mattermost-notify 포크
 # 2. okrbest/action-mattermost-notify로 사용
@@ -145,7 +267,7 @@ uses: mattermost/action-mattermost-notify@d317daebed2a792679f68fd0248557a8d21d82
 uses: okrbest/action-mattermost-notify@main
 ```
 
-#### 옵션 B: 범용 Webhook 사용
+##### 옵션 B: 범용 Webhook 사용
 ```yaml
 - name: Send notification
   run: |
@@ -154,7 +276,7 @@ uses: okrbest/action-mattermost-notify@main
       ${{ secrets.OKRBEST_RELEASE_WEBHOOK_URL }}
 ```
 
-#### 옵션 C: Slack 알림으로 대체
+##### 옵션 C: Slack 알림으로 대체
 ```yaml
 uses: slackapi/slack-github-action@v1
 with:
@@ -162,7 +284,7 @@ with:
   slack-message: 'Release ${{ env.VERSION }} started'
 ```
 
-### 3.2 커밋 상태 업데이트 Action
+#### 5.2 커밋 상태 업데이트 Action
 
 **현재 사용:**
 ```yaml
@@ -187,75 +309,35 @@ uses: mattermost/actions/delivery/update-commit-status@main
 
 ---
 
-## 4️⃣ 워크플로우 파일 수정 목록
+### Phase 6: 기존 Secrets 삭제
 
-### 4.1 release.yaml
-
-| 라인 | 현재 | 변경 |
-|------|------|------|
-| 29 | `mattermost/action-mattermost-notify@...` | 대안 선택 |
-| 31 | `MM_DESKTOP_RELEASE_WEBHOOK_URL` | `OKRBEST_RELEASE_WEBHOOK_URL` |
-| 32 | `MattermostRelease` | `OKRBestRelease` |
-| 33 | `https://mattermost.com/wp-content/uploads/...` | OKR Best 아이콘 URL |
-| 183-184 | `MM_DESKTOP_RELEASE_AWS_*` | `OKRBEST_RELEASE_AWS_*` |
-| 198 | `s3://releases.mattermost.com/desktop/` | `s3://releases.okrbest.com/desktop/` |
-| 222 | `MATTERMOST_BUILD_GH_TOKEN` | `OKRBEST_BUILD_GH_TOKEN` |
-| 248-252 | Webhook 설정 | 동일하게 변경 |
-
-### 4.2 nightly-main.yml
-
-| 라인 | 현재 | 변경 |
-|------|------|------|
-| 90-93 | `MM_DESKTOP_MSI_INSTALLER_*` | 유지 또는 `OKRBEST_*` |
-| 112-118 | `MM_DESKTOP_MAC_APP_STORE_*` | 유지 또는 `OKRBEST_*` |
-| 214-215 | `MM_DESKTOP_RELEASE_AWS_*` | `OKRBEST_RELEASE_AWS_*` |
-| 227 | `s3://releases.mattermost.com/desktop/` | `s3://releases.okrbest.com/desktop/` |
-| 235-239 | `releases.mattermost.com` | `releases.okrbest.com` |
-| 259 | `MM_DESKTOP_NIGHTLY_WEBHOOK_URL` | `OKRBEST_NIGHTLY_WEBHOOK_URL` |
-
-### 4.3 nightly-rainforest.yml
-
-| 라인 | 현재 | 변경 |
-|------|------|------|
-| 152-153 | `mattermost` (파일명 패턴) | `okrbest` |
-| 155 | `s3://mattermost-desktop-daily-builds/` | `s3://okrbest-desktop-daily-builds/` |
-
-### 4.4 e2e-functional-template.yml
-
-| 라인 | 현재 | 변경 |
-|------|------|------|
-| 118 | `mattermost-cypress-report` | `okrbest-cypress-report` |
-| 121 | `MM` (JIRA 프로젝트 키) | OKR Best JIRA 키 또는 삭제 |
-| 123-124 | `MM_DESKTOP_E2E_USER_*` | `OKRBEST_E2E_USER_*` |
-| 128-133 | 기타 E2E secrets | `OKRBEST_*` |
+모든 테스트가 완료된 후 기존 `MM_*` 시크릿을 삭제합니다.
 
 ---
 
-## 5️⃣ 구현 순서
+## 📊 환경변수 참조 요약
 
-### Phase 1: AWS 인프라 (1-2일)
-1. S3 버킷 3개 생성
-2. IAM 사용자 생성 및 정책 연결
-3. 버킷 퍼블릭 읽기 정책 설정
+### 코드에서 참조하는 환경변수 (변경 시 코드도 수정 필요)
 
-### Phase 2: 코드 서명 인증서 (1주)
-1. Windows EV 코드 서명 인증서 구매
-2. macOS Developer ID 인증서 발급
-3. Mac App Store 프로비저닝 프로파일 생성
+| 환경변수 | 파일 | 라인 |
+|----------|------|------|
+| `MM_DESKTOP_BUILD_SKIPONBOARDINGSCREENS` | `webpack.config.base.js` | 22 |
+| `MM_DESKTOP_BUILD_DISABLEGPU` | `webpack.config.base.js` | 23 |
+| `MM_DESKTOP_BUILD_SENTRYDSN` | `webpack.config.base.js` | 24 |
+| `MM_TEST_SERVER_URL` | `e2e/modules/environment.js` | 36 |
+| `MM_TEST_USER_NAME` | `e2e/modules/environment.js` | 232 |
+| `MM_TEST_PASSWORD` | `e2e/modules/environment.js` | 233 |
 
-### Phase 3: GitHub 설정 (1일)
-1. Secrets 등록 (20+개)
-2. 워크플로우 파일 수정
-3. 테스트 실행
+### Workflow에서만 사용하는 환경변수 (코드 참조 없음)
 
-### Phase 4: 알림 시스템 (1일)
-1. Webhook URL 생성 (OKR Best 서버 또는 Slack)
-2. 알림 Action 대안 구현
-3. 테스트
+| 환경변수 | 용도 |
+|----------|------|
+| `MM_WIN_INSTALLERS` | Windows 설치 파일 빌드 플래그 |
+| `MM_SERVER_VERSION` | 테스트 서버 버전 |
 
 ---
 
-## 6️⃣ 비용 예상
+## 💰 비용 예상
 
 | 항목 | 예상 비용 |
 |------|----------|
@@ -266,7 +348,7 @@ uses: mattermost/actions/delivery/update-commit-status@main
 
 ---
 
-## 7️⃣ 임시 대안 (인프라 준비 전)
+## 🚧 임시 대안 (인프라 준비 전)
 
 인프라가 준비되기 전까지 CI/CD를 비활성화하거나 최소 기능만 유지:
 
@@ -291,7 +373,7 @@ npm run package:mac
 
 ---
 
-## 참고 자료
+## 📚 참고 자료
 
 - [AWS S3 정적 웹사이트 호스팅](https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html)
 - [Windows 코드 서명 가이드](https://docs.microsoft.com/en-us/windows/win32/seccrypto/cryptography-tools)
