@@ -31,7 +31,29 @@ git fetch upstream --prune 2>/dev/null || git fetch origin --prune
 # 3. 반영되지 않은 커밋 확인
 echo ""
 echo -e "${BLUE}[2/5] 반영되지 않은 커밋 확인 중...${NC}"
-PENDING_COMMITS=$(git cherry -v $TARGET_BRANCH $UPSTREAM_BRANCH 2>/dev/null | grep "^+" | awk '{print $2}')
+
+# git cherry로 patch-id 기반 확인
+CHERRY_COMMITS=$(git cherry -v $TARGET_BRANCH $UPSTREAM_BRANCH 2>/dev/null | grep "^+" | awk '{print $2}')
+
+# 이미 cherry-pick된 커밋 해시 목록 (메시지에서 추출)
+ALREADY_PICKED=$(git log $TARGET_BRANCH --grep="cherry picked from commit" --format="%b" | grep -oP "cherry picked from commit \K[a-f0-9]+" | sort -u)
+
+# cherry-pick 메시지에 있는 원본 해시는 제외
+PENDING_COMMITS=""
+for COMMIT in $CHERRY_COMMITS; do
+    FULL_HASH=$(git rev-parse $COMMIT)
+    
+    # 이미 cherry-pick된 커밋인지 확인
+    if echo "$ALREADY_PICKED" | grep -q "^${FULL_HASH}$"; then
+        echo -e "  ${YELLOW}스킵${NC}: ${FULL_HASH:0:8} (이미 cherry-pick됨, 충돌 해결로 patch-id 변경)"
+        continue
+    fi
+    
+    PENDING_COMMITS="$PENDING_COMMITS $COMMIT"
+done
+
+# 앞뒤 공백 제거
+PENDING_COMMITS=$(echo $PENDING_COMMITS | xargs)
 
 if [ -z "$PENDING_COMMITS" ]; then
     echo -e "${GREEN}✓ 모든 upstream 변경이 이미 반영되어 있습니다.${NC}"
@@ -42,10 +64,9 @@ fi
 echo ""
 echo -e "${YELLOW}반영 대기 중인 커밋:${NC}"
 echo "----------------------------------------"
-git cherry -v $TARGET_BRANCH $UPSTREAM_BRANCH | grep "^+" | while read line; do
-    HASH=$(echo $line | awk '{print $2}')
-    MSG=$(echo $line | cut -d' ' -f3-)
-    echo -e "${RED}+${NC} ${HASH:0:8} $MSG"
+for COMMIT in $PENDING_COMMITS; do
+    MSG=$(git log -1 --format="%s" $COMMIT)
+    echo -e "${RED}+${NC} ${COMMIT:0:8} $MSG"
 done
 echo "----------------------------------------"
 
