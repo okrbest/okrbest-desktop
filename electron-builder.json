@@ -1,10 +1,4 @@
 {
-  "publish": [
-    {
-    "provider": "generic",
-    "url": "https://releases.okrbest.com/desktop"
-    }
-  ],
   "appId": "OKRBest.Desktop",
   "artifactName": "${version}/${name}-${version}-${os}-${arch}.${ext}",
   "directories": {
@@ -47,7 +41,6 @@
   ],
   "beforePack": "scripts/beforepack.js",
   "afterPack": "scripts/afterpack.js",
-  "afterAllArtifactBuild": "scripts/afterbuild.js",
   "deb": {
     "artifactName": "${version}/${name}_${version}-1_${arch}.${ext}",
     "synopsis": "OKR Best Desktop App",
@@ -151,13 +144,8 @@
         "height": 380
     }
   },
-  "squirrelWindows": {
-    "iconUrl": "file://src/assets/icon.ico",
-    "artifactName": "${version}/${name}-setup-${version}-${arch}.${ext}"
-  },
   "win": {
     "target": [
-      "nsis",
       "zip",
       "msi"
     ],
@@ -174,12 +162,6 @@
       }
     ],
     "sign": false
-  },
-  "nsis": {
-    "artifactName": "${version}/${name}-setup-${version}-win.${ext}",
-    "packElevateHelper": false,
-    "uninstallDisplayName": "${productName}",
-    "include": "scripts/installer.nsh"
   },
   "msi": {
     "additionalWixArgs": ["-ext", "WixUtilExtension"],

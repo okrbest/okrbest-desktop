@@ -6,7 +6,6 @@
 export enum DownloadItemTypeEnum {
     FILE = 'file',
     UPDATE = 'update',
-    UPDATE_DEPRECATION = 'update_deprecation',
 }
 
 export type DownloadItemUpdatedEventState = 'interrupted' | 'progressing';

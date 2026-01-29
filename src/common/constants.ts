@@ -10,18 +10,8 @@ import type {DownloadedItem, DownloadItemTypeEnum} from 'types/downloads';
  * a file that may have the same filename (eg APP_UPDATE)
  */
 export const APP_UPDATE_KEY = '#:(APP_UPDATE):#';
-export const UPDATE_DEPRECATION_KEY = '#:(UPDATE_DEPRECATION):#';
 export const UPDATE_DOWNLOAD_ITEM: Omit<DownloadedItem, 'filename' | 'state'> = {
     type: 'update' as DownloadItemTypeEnum,
-    progress: 0,
-    location: '',
-    mimeType: null,
-    addedAt: 0,
-    receivedBytes: 0,
-    totalBytes: 0,
-};
-export const UPDATE_DEPRECATION_ITEM: Omit<DownloadedItem, 'filename' | 'state'> = {
-    type: 'update_deprecation' as DownloadItemTypeEnum,
     progress: 0,
     location: '',
     mimeType: null,
@@ -67,9 +57,6 @@ export const DEFAULT_TE_REPORT_PROBLEM_LINK = 'https://okr.best/report-bug';
 export const DEFAULT_EE_REPORT_PROBLEM_LINK = 'https://support.okrbest.com/';
 export const DEFAULT_UPGRADE_LINK = 'https://okrbest.com/desktop-upgrade';
 export const DEFAULT_CHANGELOG_LINK = 'https://docs.okrbest.com/about/desktop-app-changelog.html';
-
-export const WINDOWS_STORE_LINK = 'ms-windows-store://pdp/?productid=XP8BR8MH3LPKLT';
-export const WEBSITE_LINK = 'https://docs.mattermost.com/deployment-guide/desktop/linux-desktop-install.html';
 
 export const ModalConstants = {
     SETTINGS_MODAL: 'settingsModal',

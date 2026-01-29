@@ -220,7 +220,7 @@ describe('common/config/RegistryConfig', () => {
             name: 'server-1',
             url: 'http://server-1.com',
         });
-        expect(registryConfig.data.enableAutoUpdater).toBe(true);
+        expect(registryConfig.data.enableUpdateNotifications).toBe(true);
         expect(registryConfig.data.enableServerManagement).toBe(true);
     });
 
@@ -312,7 +312,7 @@ describe('common/config/RegistryConfig', () => {
             });
         });
 
-        it('should handle EnableAutoUpdater conflict correctly', () => {
+        it('should handle EnableUpdateNotifications conflict correctly', () => {
             const originalFn = registryConfig.getRegistryEntryValues;
             registryConfig.getRegistryEntryValues = (hive, key, name) => {
                 if (hive === 'HKEY_LOCAL_MACHINE') {
@@ -323,7 +323,7 @@ describe('common/config/RegistryConfig', () => {
                 return originalFn.apply(registryConfig, [hive, key, name, false]);
             };
 
-            const result = registryConfig.getEnableAutoUpdatorFromRegistry();
+            const result = registryConfig.getEnableUpdateNotificationsFromRegistry();
 
             // Should return true (from CU) even though LM has false
             expect(result).toBe(true);
