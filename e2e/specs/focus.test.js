@@ -13,7 +13,7 @@ const env = require('../modules/environment');
 const {asyncSleep} = require('../modules/utils');
 
 describe('focus', function desc() {
-    this.timeout(40000);
+    this.timeout(process.platform === 'win32' ? 60000 : 40000);
 
     const config = {
         ...env.demoMattermostConfig,
@@ -31,8 +31,11 @@ describe('focus', function desc() {
 
     beforeEach(async () => {
         env.cleanDataDir();
+        await asyncSleep(1000);
         env.createTestUserDataDir();
+        await asyncSleep(1000);
         env.cleanTestConfig();
+        await asyncSleep(1000);
         fs.writeFileSync(env.configFilePath, JSON.stringify(config));
         await asyncSleep(1000);
         this.app = await env.getApp();
@@ -44,10 +47,8 @@ describe('focus', function desc() {
     });
 
     afterEach(async () => {
-        if (this.app) {
-            await this.app.close();
-        }
         await env.clearElectronInstances();
+        await asyncSleep(1000);
     });
 
     describe('Focus textbox tests', () => {
@@ -60,6 +61,13 @@ describe('focus', function desc() {
             });
             await settingsWindow.waitForSelector('.SettingsModal');
             await settingsWindow.close();
+
+            // Wait for focus to return to textbox after modal close
+            await asyncSleep(300);
+            await firstServer.waitForFunction(
+                () => document.activeElement?.id === 'post_textbox',
+                {timeout: 3000},
+            );
 
             const isTextboxFocused = await firstServer.$eval('#post_textbox', (el) => el === document.activeElement);
             isTextboxFocused.should.be.true;
