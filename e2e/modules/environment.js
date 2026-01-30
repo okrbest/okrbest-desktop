@@ -32,6 +32,7 @@ const downloadsFilePath = path.join(userDataDir, 'downloads.json');
 const downloadsLocation = path.join(userDataDir, 'Downloads');
 const boundsInfoPath = path.join(userDataDir, 'bounds-info.json');
 const appUpdatePath = path.join(userDataDir, 'app-update.yml');
+const certificateStorePath = path.join(userDataDir, 'certificate.json');
 const exampleURL = 'http://example.com/';
 const mattermostURL = process.env.OKRBEST_TEST_SERVER_URL || 'http://localhost:8065/';
 
@@ -369,7 +370,7 @@ module.exports = {
     },
 
     cleanTestConfig() {
-        [configFilePath, downloadsFilePath, boundsInfoPath].forEach((file) => {
+        [configFilePath, downloadsFilePath, boundsInfoPath, certificateStorePath].forEach((file) => {
             try {
                 fs.unlinkSync(file);
             } catch (err) {
