@@ -1,7 +1,5 @@
 // Copyright (c) 2016-present Mattermost, Inc. All Rights Reserved.
-// Copyright (c) 2024-present OKR Best. All Rights Reserved.
 // See LICENSE.txt for license information.
-// Modified for OKR Best project.
 
 const fs = require('fs');
 const path = require('path');
@@ -158,7 +156,7 @@ describe('Bad Server Configurations', function desc() {
             errorInfo.should.include('ERR_NAME_NOT_RESOLVED');
         });
 
-        it('should handle pre-configured unreachable server and still allow login to working OKR Best server', async () => {
+        it('should handle pre-configured unreachable server and still allow login to working Mattermost server', async () => {
             const mattermostConfig = env.demoMattermostConfig;
             const badConfig = {
                 ...mattermostConfig,
