@@ -1,7 +1,5 @@
 // Copyright (c) 2016-present Mattermost, Inc. All Rights Reserved.
-// Copyright (c) 2024-present OKR Best. All Rights Reserved.
 // See LICENSE.txt for license information.
-// Modified for OKR Best project.
 
 /**
  * Update initial pending status for all platforms
@@ -20,7 +18,7 @@ async function updateInitialStatus({github, context, platforms}) {
             sha: context.sha,
             state: 'pending',
             context: `e2e/${platform.platform}`,
-            description: `E2E tests for OKR Best desktop app on ${platform.platform} have started...`,
+            description: `E2E tests for Mattermost desktop app on ${platform.platform} have started...`,
             target_url: workflowUrl,
         }),
     ));

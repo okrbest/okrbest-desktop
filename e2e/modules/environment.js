@@ -1,8 +1,6 @@
 // Copyright (c) 2015-2016 Yuya Ochiai
 // Copyright (c) 2016-present Mattermost, Inc. All Rights Reserved.
-// Copyright (c) 2024-present OKR Best. All Rights Reserved.
 // See LICENSE.txt for license information.
-// Modified for OKR Best project.
 'use strict';
 
 const {execSync} = require('child_process');
@@ -32,9 +30,8 @@ const downloadsFilePath = path.join(userDataDir, 'downloads.json');
 const downloadsLocation = path.join(userDataDir, 'Downloads');
 const boundsInfoPath = path.join(userDataDir, 'bounds-info.json');
 const appUpdatePath = path.join(userDataDir, 'app-update.yml');
-const certificateStorePath = path.join(userDataDir, 'certificate.json');
 const exampleURL = 'http://example.com/';
-const mattermostURL = process.env.OKRBEST_TEST_SERVER_URL || 'http://localhost:8065/';
+const mattermostURL = process.env.MM_TEST_SERVER_URL || 'http://localhost:8065/';
 
 const exampleServer = {
     name: 'example',
@@ -370,7 +367,7 @@ module.exports = {
     },
 
     cleanTestConfig() {
-        [configFilePath, downloadsFilePath, boundsInfoPath, certificateStorePath].forEach((file) => {
+        [configFilePath, downloadsFilePath, boundsInfoPath].forEach((file) => {
             try {
                 fs.unlinkSync(file);
             } catch (err) {
@@ -570,7 +567,7 @@ module.exports = {
             const windows = app.windows().filter((win) => {
                 try {
                     const url = win.url();
-                    return url && !url.includes('okrbest-desktop://');
+                    return url && !url.includes('mattermost-desktop://');
                 } catch (e) {
                     // Window might be closed or not ready
                     return false;
@@ -655,8 +652,8 @@ module.exports = {
             await window.waitForSelector('#input_password-input', {timeout: selectorTimeout});
             await window.waitForSelector('#saveSetting', {timeout: selectorTimeout});
 
-            await window.type('#input_loginId', process.env.OKRBEST_TEST_USER_NAME);
-            await window.type('#input_password-input', process.env.OKRBEST_TEST_PASSWORD);
+            await window.type('#input_loginId', process.env.MM_TEST_USER_NAME);
+            await window.type('#input_password-input', process.env.MM_TEST_PASSWORD);
             await window.click('#saveSetting');
 
             // Wait for login to complete
