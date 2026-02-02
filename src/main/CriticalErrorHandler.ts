@@ -27,8 +27,6 @@ export class CriticalErrorHandler {
             return;
         }
 
-        sentryHandler.captureException(err);
-
         if (app.isReady()) {
             this.showExceptionDialog(err);
         } else {
@@ -92,6 +90,8 @@ export class CriticalErrorHandler {
                 app.relaunch();
                 break;
             }
+            return sentryHandler.flush();
+        }).then(() => {
             app.exit(-1);
         });
     };

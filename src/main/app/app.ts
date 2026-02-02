@@ -14,6 +14,7 @@ import ServerManager from 'common/servers/serverManager';
 import {parseURL} from 'common/utils/url';
 import {localizeMessage} from 'main/i18nManager';
 import CertificateStore from 'main/security/certificateStore';
+import sentryHandler from 'main/sentryHandler';
 
 import {getDeeplinkingURL, openDeepLink, resizeScreen} from './utils';
 
@@ -80,6 +81,7 @@ export function handleAppBeforeQuit() {
     log.debug('handleAppBeforeQuit');
 
     // Make sure tray icon gets removed if the user exits via CTRL-Q
+    sentryHandler.flush();
     Tray.destroy();
     global.willAppQuit = true;
 }

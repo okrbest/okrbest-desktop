@@ -27,6 +27,9 @@ jest.mock('main/app/utils', () => ({
     getDeeplinkingURL: jest.fn(),
     openDeepLink: jest.fn(),
 }));
+jest.mock('main/sentryHandler', () => ({
+    flush: jest.fn(),
+}));
 jest.mock('main/updateNotifier', () => ({}));
 
 jest.mock('main/security/certificateStore', () => ({
