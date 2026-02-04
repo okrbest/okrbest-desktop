@@ -3,7 +3,7 @@
 // See LICENSE.txt for license information.
 // Modified for OKR Best project.
 
-import type {MenuItem, MenuItemConstructorOptions} from 'electron';
+import type {BrowserWindow, Input, MenuItem, MenuItemConstructorOptions} from 'electron';
 import {clipboard, Menu} from 'electron';
 
 import WebContentsManager from 'app/views/webContentsManager';
@@ -85,6 +85,17 @@ function createTemplate(viewId: string) {
 function createMenu(viewId: string) {
     // Electron is enforcing certain variables that it doesn't need
     return Menu.buildFromTemplate(createTemplate(viewId));
+}
+
+export function createSetNativeTitleBar(window: BrowserWindow, viewId: string) {
+    return (event: Event, input: Input) => {
+        if (input.key === 'Alt') {
+            window.setMenu(Menu.buildFromTemplate([{
+                label: localizeMessage('main.menus.popoutMenu.title', 'Popout Menu'),
+                submenu: createTemplate(viewId) as MenuItemConstructorOptions[],
+            }]));
+        }
+    };
 }
 
 export default function PopoutMenu(viewId: string) {

@@ -11,6 +11,7 @@ import type {PopoutViewProps} from '@mattermost/desktop-api';
 import CallsWidgetWindow from 'app/callsWidgetWindow';
 import MainWindow from 'app/mainWindow/mainWindow';
 import MenuManager from 'app/menus';
+import {createSetNativeTitleBar} from 'app/popoutMenu';
 import type {MattermostWebContentsView} from 'app/views/MattermostWebContentsView';
 import WebContentsManager from 'app/views/webContentsManager';
 import BaseWindow from 'app/windows/baseWindow';
@@ -37,6 +38,7 @@ import {
     POPOUT_CLOSED,
     UPDATE_TARGET_URL,
 } from 'common/communication';
+import Config from 'common/config';
 import {POPOUT_RATE_LIMIT} from 'common/constants';
 import {Logger} from 'common/log';
 import ServerManager from 'common/servers/serverManager';
@@ -126,6 +128,10 @@ export class PopoutManager {
         window.registerThemeManager((webContents) => ThemeManager.registerPopoutView(webContents, view.id));
         this.popoutWindows.set(view.id, window);
 
+        if (Config.useNativeTitleBar) {
+            window.browserWindow.setAutoHideMenuBar(true);
+        }
+
         return window;
     };
 
@@ -168,9 +174,15 @@ export class PopoutManager {
         window.browserWindow.once('show', setBounds);
         window.browserWindow.once('close', close);
 
+        const setNativeTitleBar = createSetNativeTitleBar(window.browserWindow, viewId);
         if (process.platform !== 'darwin') {
-            // @ts-expect-error: The type is wrong on Electrons side
-            webContentsView.webContents.on('before-input-event', window.handleAltKeyPressed);
+            if (Config.useNativeTitleBar) {
+                // @ts-expect-error: The type is wrong on Electrons side
+                webContentsView.webContents.on('before-input-event', setNativeTitleBar);
+            } else {
+                // @ts-expect-error: The type is wrong on Electrons side
+                webContentsView.webContents.on('before-input-event', window.handleAltKeyPressed);
+            }
         }
 
         this.popoutListeners.set(viewId, () => {
@@ -183,8 +195,13 @@ export class PopoutManager {
             window.browserWindow.off('show', setBounds);
             window.browserWindow.off('close', close);
 
-            // @ts-expect-error: The type is wrong on Electrons side
-            webContentsView.webContents.off('before-input-event', window.handleAltKeyPressed);
+            if (Config.useNativeTitleBar) {
+                // @ts-expect-error: The type is wrong on Electrons side
+                webContentsView.webContents.off('before-input-event', setNativeTitleBar);
+            } else {
+                // @ts-expect-error: The type is wrong on Electrons side
+                webContentsView.webContents.off('before-input-event', window.handleAltKeyPressed);
+            }
         });
 
         window.browserWindow.contentView.addChildView(mattermostWebContentsView.getWebContentsView());
@@ -213,7 +230,10 @@ export class PopoutManager {
     private setBounds = (window: BaseWindow, webContentsView: WebContentsView) => {
         return () => {
             if (window.browserWindow) {
-                webContentsView.setBounds(getWindowBoundaries(window.browserWindow));
+                const windowBounds = Config.useNativeTitleBar ?
+                    {...window.browserWindow.getContentBounds(), y: 0, x: 0} :
+                    getWindowBoundaries(window.browserWindow);
+                webContentsView.setBounds(windowBounds);
             }
         };
     };

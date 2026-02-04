@@ -3,7 +3,7 @@
 // See LICENSE.txt for license information.
 // Modified for OKR Best project.
 
-import {BrowserWindow, ipcMain} from 'electron';
+import {app, BrowserWindow, ipcMain} from 'electron';
 import EventEmitter from 'events';
 
 import MainWindow from 'app/mainWindow/mainWindow';
@@ -319,6 +319,7 @@ export class TabManager extends EventEmitter {
         const view = ViewManager.getView(viewId);
         if (view && view.type === ViewType.TAB) {
             MainWindow.get()?.webContents.send(UPDATE_TAB_TITLE, view.id, view.title);
+            this.updateMainWindowTitle();
         }
     };
 
@@ -338,6 +339,7 @@ export class TabManager extends EventEmitter {
         const tab = this.getCurrentTabForServer(serverId);
         if (tab) {
             this.setActiveTab(tab.id);
+            this.updateMainWindowTitle();
         }
     };
 
@@ -503,6 +505,19 @@ export class TabManager extends EventEmitter {
         if (viewId) {
             WebContentsManager.clearCacheAndReloadView(viewId);
         }
+    };
+
+    private updateMainWindowTitle = () => {
+        const currentActiveTab = this.getCurrentActiveTab();
+        if (!currentActiveTab) {
+            return;
+        }
+        const server = ServerManager.getServer(currentActiveTab.serverId);
+        if (!server) {
+            return;
+        }
+        const title = `${ViewManager.getViewTitle(currentActiveTab.id)}${server.isLoggedIn ? ` - ${server.name}` : ''} - ${app.name}`;
+        MainWindow.get()?.setTitle(title);
     };
 }
 
