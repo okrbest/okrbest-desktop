@@ -65,7 +65,7 @@
       "rpm",
       "flatpak"
     ],
-    "appId": "com.Mattermost.Desktop",
+    "appId": "com.OKRBest.Desktop",
     "extraFiles": [
       {
         "filter": [

@@ -76,13 +76,9 @@ Modified for OKR Best project.
 
 ## 2. 남은 작업
 
-### 2.1 [높음] electron-builder.json 미완료 항목
+### ~~2.1 [높음] electron-builder.json 미완료 항목~~ ✅ 완료
 
-| 항목 | 현재값 | 변경 필요값 |
-|------|--------|------------|
-| `linux.appId` (line 68) | `com.Mattermost.Desktop` | `com.OKRBest.Desktop` |
-
-**파일**: `electron-builder.json`
+`linux.appId`를 `com.OKRBest.Desktop`으로 변경 완료.
 
 ### 2.2 [높음] 빌드 설정 URL
 
