@@ -569,10 +569,10 @@ const buildConfig: BuildConfig = {
 
 ```bash
 # 데이터 디렉터리 변경
-./mattermost-desktop --args --data-dir ~/custom-data/
+./okrbest-desktop --args --data-dir ~/custom-data/
 
 # 개발 모드 비활성화
-./mattermost-desktop --disable-dev-mode
+./okrbest-desktop --disable-dev-mode
 ```
 
 ---

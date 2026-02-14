@@ -212,9 +212,9 @@ jobs:
         run: |
           bash -x ./scripts/generate_latest_version.sh
       - name: release/upload-to-s3
-        run: aws s3 cp ./aws-s3-dist/ s3://releases.mattermost.com/desktop/ --acl public-read --cache-control "no-cache" --recursive
+        run: aws s3 cp ./aws-s3-dist/ s3://releases.okrbest.com/desktop/ --acl public-read --cache-control "no-cache" --recursive
       - name: release/upload-latest-version
-        run: aws s3 cp ./${{ steps.generate-latest.outputs.FILENAME }} s3://releases.mattermost.com/desktop/${{ steps.generate-latest.outputs.FILENAME }} --acl public-read --cache-control "no-cache"
+        run: aws s3 cp ./${{ steps.generate-latest.outputs.FILENAME }} s3://releases.okrbest.com/desktop/${{ steps.generate-latest.outputs.FILENAME }} --acl public-read --cache-control "no-cache"
 
       # Upload artifacts new bucket
       - name: release/setup-aws-credentials-new-bucket

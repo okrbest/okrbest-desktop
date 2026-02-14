@@ -238,9 +238,9 @@ jobs:
         run: |
           bash -x ./scripts/generate_latest_version.sh
       - name: nightly/upload-to-s3
-        run: aws s3 cp ./aws-s3-dist/ s3://releases.mattermost.com/desktop/ --acl public-read --cache-control "no-cache" --recursive
+        run: aws s3 cp ./aws-s3-dist/ s3://releases.okrbest.com/desktop/ --acl public-read --cache-control "no-cache" --recursive
       - name: nightly/upload-latest-version
-        run: aws s3 cp ./${{ steps.generate-latest.outputs.FILENAME }} s3://releases.mattermost.com/desktop/${{ steps.generate-latest.outputs.FILENAME }} --acl public-read --cache-control "no-cache"
+        run: aws s3 cp ./${{ steps.generate-latest.outputs.FILENAME }} s3://releases.okrbest.com/desktop/${{ steps.generate-latest.outputs.FILENAME }} --acl public-read --cache-control "no-cache"
       - name: nightly/generate-linklist
         id: generate-linklist
         run: |
@@ -248,11 +248,11 @@ jobs:
           echo "### Nightly builds:" > ./links/linklist.txt
           echo "Links for $(date +"%b-%d-%Y")" >> ./links/linklist.txt
           echo "##### :tux: Linux" >> ./links/linklist.txt
-          for i in `ls ./build/linux/$(jq -r .version package.json)/` ; do echo "- [$i](https://s3.amazonaws.com/releases.mattermost.com/desktop/$(jq -r .version package.json)/$i)" ; done >> ./links/linklist.txt
+          for i in `ls ./build/linux/$(jq -r .version package.json)/` ; do echo "- [$i](https://s3.amazonaws.com/releases.okrbest.com/desktop/$(jq -r .version package.json)/$i)" ; done >> ./links/linklist.txt
           echo "##### :apple_logo: macOS" >> ./links/linklist.txt
-          for i in `ls ./build/macos-release/$(jq -r .version package.json)/` ; do echo "- [$i](https://s3.amazonaws.com/releases.mattermost.com/desktop/$(jq -r .version package.json)/$i)" ; done >> ./links/linklist.txt
+          for i in `ls ./build/macos-release/$(jq -r .version package.json)/` ; do echo "- [$i](https://s3.amazonaws.com/releases.okrbest.com/desktop/$(jq -r .version package.json)/$i)" ; done >> ./links/linklist.txt
           echo "##### :windows: Windows" >> ./links/linklist.txt
-          for i in `ls ./build/win-release/$(jq -r .version package.json)/` ; do echo "- [$i](https://s3.amazonaws.com/releases.mattermost.com/desktop/$(jq -r .version package.json)/$i)" ; done >> ./links/linklist.txt
+          for i in `ls ./build/win-release/$(jq -r .version package.json)/` ; do echo "- [$i](https://s3.amazonaws.com/releases.okrbest.com/desktop/$(jq -r .version package.json)/$i)" ; done >> ./links/linklist.txt
           cat ./links/linklist.txt
           LINKLIST=$(<./links/linklist.txt)
           ## https://docs.github.com/en/actions/using-workflows/workflow-commands-for-github-actions#multiline-strings
