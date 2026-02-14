@@ -637,7 +637,9 @@ release/{version}/
 ### 9.4 코드 서명 (배포 시)
 
 ```bash
-# Windows - 현재 비활성화 (SSL.com 인증서 구매 후 설정)
+# Windows - 현재 비활성화 (Certum 인증서 구매 후 설정)
+#   구매처: https://shop.certum.eu/code-signing.html
+#   Open Source Code Signing in the Cloud (€49/년) 권장
 # macOS - Apple Developer 인증서 필요
 # Linux - GPG 서명 (선택)
 

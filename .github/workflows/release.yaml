@@ -103,31 +103,19 @@ jobs:
         run: |
           npm run package:windows
       - name: release/sign-windows-exe
-        if: ${{ env.SSLCOM_CREDENTIAL_ID != '' }}
-        uses: sslcom/actions-codesigner@develop
+        if: ${{ secrets.CERTUM_OTP_URI != '' }}
+        shell: powershell
         env:
-          SSLCOM_CREDENTIAL_ID: ${{ secrets.SSLCOM_CREDENTIAL_ID }}
-        with:
-          command: sign
-          username: ${{ secrets.SSLCOM_USERNAME }}
-          password: ${{ secrets.SSLCOM_PASSWORD }}
-          credential_id: ${{ secrets.SSLCOM_CREDENTIAL_ID }}
-          totp_secret: ${{ secrets.SSLCOM_TOTP_SECRET }}
-          file_path: release/**/okrbest-desktop*.exe
-          output_path: release
+          CERTUM_OTP_URI: ${{ secrets.CERTUM_OTP_URI }}
+          CERTUM_USERID: ${{ secrets.CERTUM_USERID }}
+        run: pwsh -ExecutionPolicy Bypass -File ./scripts/certum-sign.ps1 -FilePath "release/**/okrbest-desktop*.exe"
       - name: release/sign-windows-msi
-        if: ${{ env.SSLCOM_CREDENTIAL_ID != '' }}
-        uses: sslcom/actions-codesigner@develop
+        if: ${{ secrets.CERTUM_OTP_URI != '' }}
+        shell: powershell
         env:
-          SSLCOM_CREDENTIAL_ID: ${{ secrets.SSLCOM_CREDENTIAL_ID }}
-        with:
-          command: sign
-          username: ${{ secrets.SSLCOM_USERNAME }}
-          password: ${{ secrets.SSLCOM_PASSWORD }}
-          credential_id: ${{ secrets.SSLCOM_CREDENTIAL_ID }}
-          totp_secret: ${{ secrets.SSLCOM_TOTP_SECRET }}
-          file_path: release/**/okrbest-desktop*.msi
-          output_path: release
+          CERTUM_OTP_URI: ${{ secrets.CERTUM_OTP_URI }}
+          CERTUM_USERID: ${{ secrets.CERTUM_USERID }}
+        run: pwsh -ExecutionPolicy Bypass -File ./scripts/certum-sign.ps1 -FilePath "release/**/okrbest-desktop*.msi"
       - name: release/package
         run: |
           mkdir -p ./build/win-release

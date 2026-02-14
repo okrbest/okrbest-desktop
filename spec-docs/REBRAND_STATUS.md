@@ -183,17 +183,31 @@ rg "Mattermost" i18n/ --include="*.json"
 **GitHub Secrets 이름 변경:**
 - 기존 `MM_*` prefix → `OKRBEST_*` prefix (CI_CD.md 참조)
 
-### 2.8 [낮음] 코드 서명 인증서
+### 2.8 [높음] 코드 서명 - GitHub Secrets 등록
 
-현재 Windows 코드 서명이 비활성화 상태:
+Windows 코드 서명 인증서 및 워크플로우 설정 완료:
 
-```json
-{ "win": { "sign": false } }
-```
+| 항목 | 상태 |
+|------|------|
+| 인증서 | Certum Standard Code Signing in the Cloud (365일) |
+| 조직 | OKRBEST Inc. (경기도 안양시, KR) |
+| 유효 기간 | 2026-02-14 ~ 2027-02-14 |
+| 활성화 | ✅ 완료 |
+| 워크플로우 연동 | ✅ `scripts/certum-sign.ps1` + 4개 워크플로우 적용 |
+| GitHub Secrets | **미등록** |
 
-프로덕션 배포 전 필요:
-- [ ] Windows: SSL.com OV 코드 서명 인증서 (~$200-300/년)
-- [ ] macOS: Apple Developer Program ($99/년)
+`electron-builder.json`의 `"sign": false`는 유지 (클라우드 서명은 빌드 후 별도 단계에서 실행):
+
+**남은 작업:**
+- [x] Certum 포털에서 인증서 활성화
+- [x] SimplySign 계정 설정 및 모바일 앱 연결
+- [x] 워크플로우 서명 단계를 Certum SimplySign으로 교체
+- [ ] SimplySign QR 코드에서 `otpauth://` URI 추출 (1Password 등 사용)
+- [ ] GitHub Secrets 2개 등록:
+  - `CERTUM_OTP_URI` (QR 코드의 `otpauth://totp/...` 전체 URI)
+  - `CERTUM_USERID` (`sdh@okr.best`)
+- [ ] PR 빌드(`build-for-pr.yml`)로 서명 테스트
+- [ ] macOS: Apple Developer Program ($99/년) - 별도 진행 필요
 
 ### 2.9 [낮음] 외부 링크/상수
 
@@ -255,7 +269,7 @@ Apache License 2.0 파생 작업물로서 반드시 유지해야 할 항목:
 | **중간** | 다국어 파일 정리 (2.6) | 아니오 | 2시간 |
 | **중간** | 빌드 설정 URL (2.2) | **예** | 30분 |
 | **중간** | 워크플로우 인프라 (2.7) | **예** | 2시간 |
-| **낮음** | 코드 서명 (2.8) | **예** | 별도 |
+| **높음** | 코드 서명 활성화 (2.8) | **예** (Certum 포털 + GitHub Secrets) | 1시간 |
 | **낮음** | 외부 링크 상수 (2.9) | **예** | 30분 |
 | **낮음** | 테스트 파일 (2.10) | 아니오 | 2시간 |
 

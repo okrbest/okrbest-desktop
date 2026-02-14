@@ -88,30 +88,68 @@ git push origin v1.0.0
 
 **위치**: GitHub 저장소 → Settings → Secrets and variables → Actions
 
-### 3.1 Windows 코드 서명 (SSL.com eSigner)
+### 3.1 Windows 코드 서명 (Certum SimplySign)
 
-현재 **서명 비활성화** 상태 (`electron-builder.json`: `"win": { "sign": false }`).
-SSL.com 인증서 구매 후 활성화:
+**인증서 상태**: Certum Standard Code Signing in the Cloud (365일) - ✅ 활성화 완료
+**조직**: OKRBEST Inc. (경기도 안양시, KR)
+**유효 기간**: 2026-02-14 ~ 2027-02-14
+**Serial**: `0e20f726ad841afdc64745642c4327b9`
 
-| Secret | 용도 |
-|--------|------|
-| `SSLCOM_USERNAME` | SSL.com 계정 사용자명 |
-| `SSLCOM_PASSWORD` | SSL.com 계정 비밀번호 |
-| `SSLCOM_CREDENTIAL_ID` | eSigner Credential ID |
-| `SSLCOM_TOTP_SECRET` | 2FA TOTP 시크릿 |
+`electron-builder.json`의 `"sign": false`는 유지합니다.
+클라우드 서명은 빌드 후 `scripts/certum-sign.ps1` 스크립트에서 별도 실행됩니다.
 
-워크플로우에서 사용:
-```yaml
-- name: Sign with SSL.com eSigner
-  uses: sslcom/actions-codesigner@develop
-  with:
-    command: sign
-    username: ${{ secrets.SSLCOM_USERNAME }}
-    password: ${{ secrets.SSLCOM_PASSWORD }}
-    credential_id: ${{ secrets.SSLCOM_CREDENTIAL_ID }}
-    totp_secret: ${{ secrets.SSLCOM_TOTP_SECRET }}
-    file_path: release/*.exe
+#### 서명 흐름
+
 ```
+npm run package:windows (sign: false로 서명 없이 빌드)
+    ↓
+certum-sign.ps1 실행:
+  1. SimplySign Desktop 설치 (없는 경우)
+  2. otpauth:// URI에서 TOTP 자동 생성
+  3. SimplySign Desktop 인증
+  4. signtool.exe로 .exe/.msi 서명
+```
+
+#### 필요한 GitHub Secrets (2개)
+
+| Secret | 용도 | 값 |
+|--------|------|-----|
+| `CERTUM_OTP_URI` | SimplySign QR 코드의 `otpauth://totp/...` 전체 URI | (QR 코드에서 추출) |
+| `CERTUM_USERID` | SimplySign 계정 이메일 | `sdh@okr.best` |
+
+> Secret이 등록되면 워크플로우 서명 단계가 자동 활성화됩니다.
+> 조건: `if: ${{ secrets.CERTUM_OTP_URI != '' }}`
+
+#### 워크플로우 설정 (적용 완료)
+
+`release.yaml`, `build-for-pr.yml`, `nightly-main.yml`, `nightly-rainforest.yml`에
+Certum SimplySign 서명 단계 설정됨:
+
+```yaml
+- name: release/sign-windows-exe
+  if: ${{ secrets.CERTUM_OTP_URI != '' }}
+  shell: powershell
+  env:
+    CERTUM_OTP_URI: ${{ secrets.CERTUM_OTP_URI }}
+    CERTUM_USERID: ${{ secrets.CERTUM_USERID }}
+  run: pwsh -ExecutionPolicy Bypass -File ./scripts/certum-sign.ps1 -FilePath "release/**/okrbest-desktop*.exe"
+```
+
+#### otpauth:// URI 추출 방법
+
+1. SimplySign 설정 시 표시된 QR 코드를 1Password 등 다른 인증 앱으로 스캔
+2. 앱 편집 화면에서 `otpauth://totp/...` URI 전체를 복사
+3. GitHub Secrets에 `CERTUM_OTP_URI`로 등록
+
+참고: [Certum SimplySign 자동화 가이드](https://www.devas.life/how-to-automate-signing-your-windows-app-with-certum/)
+
+#### 서명 없이 배포 시 영향
+
+| 항목 | 영향 |
+|------|------|
+| SmartScreen | "Windows가 PC를 보호했습니다" 경고 표시 |
+| 사용자 경험 | "추가 정보" → "실행" 클릭 필요 |
+| 기업 환경 | IT 정책으로 설치 차단 가능 |
 
 ### 3.2 macOS Developer ID 코드 서명
 
@@ -218,12 +256,12 @@ releases.okrbest.com/desktop/
 
 ### 4.3 비용 예상
 
-| 항목 | 예상 비용 |
-|------|----------|
+| 항목 | 비용 |
+|------|------|
 | AWS S3 (월) | ~$5-20 |
-| Windows 코드 서명 - SSL.com OV (년) | ~$200-300 |
+| Windows 코드 서명 - Certum Standard (년) | €209 (~$230) ✅ 구매 완료 |
 | Apple Developer Program (년) | $99 |
-| **합계 (연간)** | **~$400-700** |
+| **합계 (연간)** | **~$390-570** |
 
 ### 4.4 임시 대안 (인프라 준비 전)
 
