@@ -95,48 +95,18 @@ Modified for OKR Best project.
 
 | 파일 | 내용 | 비고 |
 |------|------|------|
-| `src/main/utils.ts` (line 124) | `'Mattermost.Desktop'` (tccutil 명령) | macOS 권한 리셋 명령 |
-| `src/main/notifications/dnd-windows.ts` (line 25) | `isPriority('Mattermost.Desktop')` | Windows 방해금지 모드 |
-| `src/common/utils/constants.ts` (line 55) | `NotMattermost: 'NOT_MATTERMOST'` | enum 값 |
+| ~~`src/main/utils.ts`~~ | ~~`'Mattermost.Desktop'`~~ | ✅ `OKRBest.Desktop`으로 변경 완료 |
+| ~~`src/main/notifications/dnd-windows.ts`~~ | ~~`isPriority('Mattermost.Desktop')`~~ | ✅ `OKRBest.Desktop`으로 변경 완료 |
+| `src/common/utils/constants.ts` (line 55) | `NotMattermost: 'NOT_MATTERMOST'` | enum 값 (내부 상수, 변경 불필요) |
 
 **의도적 유지 항목** (변경 불필요):
 - `src/main/server/serverInfo.ts` (line 97): `'com.mattermost.nps'` → Mattermost 서버 플러그인 ID
 - `src/common/utils/constants.ts` (line 33): `CALLS_PLUGIN_ID = 'com.mattermost.calls'` → Mattermost 서버 플러그인 ID
 - `electron-builder.json` protocols에 `mattermost` 스키마 유지 → Mattermost 서버 호환성
 
-### 2.4 [높음] 아이콘 교체
+### ~~2.4 [높음] 아이콘 교체~~ ✅ 완료
 
-모든 앱 아이콘이 아직 Mattermost 기본 아이콘 상태:
-
-**메인 앱 아이콘:**
-- [ ] `src/assets/icon.ico` (Windows)
-- [ ] `src/assets/icon.icns` (macOS)
-- [ ] `src/assets/appicon_48.png`
-- [ ] `src/assets/appicon_with_spacing_32.png`
-- [ ] `src/assets/linux/app_icon.png`
-
-**트레이 아이콘 (Windows):**
-- [ ] `src/assets/windows/tray_light.ico`
-- [ ] `src/assets/windows/tray_light_unread.ico`
-- [ ] `src/assets/windows/tray_light_mention.ico`
-- [ ] `src/assets/windows/tray_dark.ico`
-- [ ] `src/assets/windows/tray_dark_unread.ico`
-- [ ] `src/assets/windows/tray_dark_mention.ico`
-
-**트레이 아이콘 (Linux):**
-- [ ] `src/assets/linux/top_bar_light_16.png` 및 `@2x`
-- [ ] `src/assets/linux/top_bar_light_unread_16.png` 및 `@2x`
-- [ ] `src/assets/linux/top_bar_light_mention_16.png` 및 `@2x`
-- [ ] `src/assets/linux/top_bar_dark_*.png` 전체
-
-**macOS 리소스:**
-- [ ] `src/assets/osx/DMG_BG.png` (DMG 배경)
-- [ ] `src/assets/osx/menuIcons/` 디렉터리 내 아이콘
-
-**아이콘 제작 요구사항:**
-- ICO: 16, 24, 32, 48, 64, 128, 256px 다중 해상도
-- ICNS: 16~1024px, @1x/@2x
-- PNG: 투명 배경, sRGB 프로파일
+모든 앱 아이콘(메인, 트레이 Windows/Linux, macOS DMG 배경, 메뉴 아이콘) 교체 완료.
 
 ### 2.5 [중간] Windows GPO 파일
 
