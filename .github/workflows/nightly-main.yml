@@ -277,10 +277,11 @@ jobs:
       - upload-to-s3
     steps:
       - name: nightly/share-links-to-channel
-        run: |
-          jq --null-input \
-          --arg icon_url "https://upload.wikimedia.org/wikipedia/commons/1/17/Luna_symbol.png" \
-          --arg username "NightBuilder" \
-          --arg text "${{ needs.upload-to-s3.outputs.links }}" \
-          '{"username":$username,"icon_url": $icon_url, "text": $text }' > /tmp/webhook-data.json
-          curl -i -X POST -H "Content-Type: application/json" -d @/tmp/webhook-data.json ${{ secrets.OKRBEST_DESKTOP_NIGHTLY_WEBHOOK_URL }}
+        if: ${{ secrets.OKRBEST_DESKTOP_NIGHTLY_WEBHOOK_URL != '' }}
+        uses: okrbest/action-okrbest-notify@master
+        with:
+          MATTERMOST_WEBHOOK_URL: ${{ secrets.OKRBEST_DESKTOP_NIGHTLY_WEBHOOK_URL }}
+          MATTERMOST_USERNAME: NightBuilder
+          MATTERMOST_ICON_URL: https://upload.wikimedia.org/wikipedia/commons/1/17/Luna_symbol.png
+          TEXT: |
+            ${{ needs.upload-to-s3.outputs.links }}

@@ -27,10 +27,12 @@ jobs:
 
       - name: release/notify-channel
         if: ${{ secrets.OKRBEST_DESKTOP_RELEASE_WEBHOOK_URL != '' }}
-        run: |
-          curl -sf -X POST -H 'Content-Type: application/json' \
-            -d '{"text": "[${{ steps.calc.outputs.VERSION }}] Release process for the desktop app has started, it should take about 30 minutes to complete.", "username": "OKRBestRelease"}' \
-            ${{ secrets.OKRBEST_DESKTOP_RELEASE_WEBHOOK_URL }}
+        uses: okrbest/action-okrbest-notify@master
+        with:
+          MATTERMOST_WEBHOOK_URL: ${{ secrets.OKRBEST_DESKTOP_RELEASE_WEBHOOK_URL }}
+          MATTERMOST_USERNAME: OKRBestRelease
+          TEXT: |
+            [${{ steps.calc.outputs.VERSION }}] Release process for the desktop app has started, it should take about 30 minutes to complete.
 
   build-linux:
     runs-on: ubuntu-22.04
@@ -275,7 +277,9 @@ jobs:
 
       - name: release/notify-channel
         if: ${{ secrets.OKRBEST_DESKTOP_RELEASE_WEBHOOK_URL != '' }}
-        run: |
-          curl -sf -X POST -H 'Content-Type: application/json' \
-            -d "{\"text\": $(echo '${{ steps.calc.outputs.BODY }}' | jq -Rs .), \"username\": \"OKRBestRelease\"}" \
-            ${{ secrets.OKRBEST_DESKTOP_RELEASE_WEBHOOK_URL }}
+        uses: okrbest/action-okrbest-notify@master
+        with:
+          MATTERMOST_WEBHOOK_URL: ${{ secrets.OKRBEST_DESKTOP_RELEASE_WEBHOOK_URL }}
+          MATTERMOST_USERNAME: OKRBestRelease
+          TEXT: |
+            ${{ steps.calc.outputs.BODY }}

@@ -321,10 +321,11 @@ gh release create v1.0.0 release/**/* --title "v1.0.0" --draft
 
 ### 5.4 외부 Actions 대체
 
-| 현재 | 대안 |
-|------|------|
-| `mattermost/action-mattermost-notify` | curl webhook 또는 `slackapi/slack-github-action` |
-| `mattermost/actions/delivery/update-commit-status` | `actions/github-script` |
+| 원래 | 변경 후 | 상태 |
+|------|---------|------|
+| `mattermost/action-mattermost-notify` | `okrbest/action-okrbest-notify@master` | ✅ 완료 |
+| `mattermost/actions/delivery/update-commit-status` | `okrbest/actions/delivery/update-commit-status` | ✅ 완료 |
+| `mattermost/actions-workflows/.../snyk-sbom.yml` | `okrbest/actions-workflows/.../snyk-sbom.yml` | ✅ 완료 |
 
 대체 예시 (커밋 상태 업데이트):
 ```yaml
