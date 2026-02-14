@@ -578,4 +578,88 @@ npm run watch
 
 ---
 
+## 9. 프로덕션 빌드 및 패키징
+
+### 9.1 프로덕션 빌드
+
+```bash
+# 기본 프로덕션 빌드
+npm run build-prod
+
+# 자동 업데이트 지원 포함
+npm run build-prod-upgrade
+
+# Mac App Store용 빌드
+npm run build-prod-mas
+
+# 빌드 설정 검증
+npm run check-build-config
+```
+
+### 9.2 플랫폼별 패키징
+
+```bash
+# === Windows ===
+npm run package:windows           # 전체 (ZIP, NSIS, MSI)
+npm run package:windows-zip       # ZIP만
+npm run package:windows-installers # NSIS + MSI
+
+# === macOS ===
+npm run package:mac               # DMG, ZIP
+npm run package:mac-with-universal # Universal (Intel + Apple Silicon) 포함
+npm run package:mas               # Mac App Store
+
+# === Linux ===
+npm run package:linux             # 전체
+npm run package:linux-tar         # tar.gz
+npm run package:linux-pkg         # deb, rpm
+npm run package:linux-appImage    # AppImage
+```
+
+### 9.3 출력 파일
+
+모든 패키지는 `release/{version}/` 디렉터리에 생성됩니다:
+
+```
+release/{version}/
+├── okrbest-desktop-{version}-win-x64.zip
+├── okrbest-desktop-{version}-win-x64.msi
+├── okrbest-desktop-setup-{version}-win.exe    (NSIS)
+├── okrbest-desktop-{version}-mac-x64.dmg
+├── okrbest-desktop-{version}-mac-arm64.dmg
+├── okrbest-desktop-{version}-mac-universal.dmg
+├── okrbest-desktop-{version}-linux-x64.tar.gz
+├── okrbest-desktop_{version}-1_amd64.deb
+├── okrbest-desktop-{version}-linux-x86_64.rpm
+└── okrbest-desktop-{version}-linux-x86_64.AppImage
+```
+
+### 9.4 코드 서명 (배포 시)
+
+```bash
+# Windows - 현재 비활성화 (SSL.com 인증서 구매 후 설정)
+# macOS - Apple Developer 인증서 필요
+# Linux - GPG 서명 (선택)
+
+# 서명 없이 빌드 (개발/테스트용)
+export CSC_IDENTITY_AUTO_DISCOVERY=false
+npm run package:mac
+```
+
+### 9.5 릴리스 배포
+
+```bash
+# Git 태그 생성 → GitHub Actions 자동 빌드/배포
+git tag -a v1.0.0 -m "Release v1.0.0"
+git push origin v1.0.0
+
+# 수동 릴리스 (GitHub CLI)
+gh release create v1.0.0 release/**/* --title "v1.0.0" --draft
+```
+
+자세한 CI/CD 배포 프로세스는 [CI_CD.md](./CI_CD.md) 참조.
+
+---
+
 *문서 작성일: 2026-01-04*
+*패키징/배포 섹션 추가: 2026-02-14*
