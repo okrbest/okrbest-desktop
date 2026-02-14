@@ -302,18 +302,15 @@ gh release create v1.0.0 release/**/* --title "v1.0.0" --draft
 | `MM_WIN_INSTALLERS` | `OKRBEST_WIN_INSTALLERS` |
 | `MM_SERVER_VERSION` | `OKRBEST_SERVER_VERSION` |
 
-### 5.2 수정 필요한 워크플로우 파일 (8개)
+### ~~5.2 수정 필요한 워크플로우 파일~~ ✅ 완료
 
-| 파일 | 주요 변경 |
-|------|----------|
-| `build-for-pr.yml` | `MM_WIN_INSTALLERS`, macOS/Windows Secrets 이름 |
-| `nightly-main.yml` | `MM_WIN_INSTALLERS`, Secrets 이름, S3 URL |
-| `nightly-rainforest.yml` | `MM_DESKTOP_BUILD_*`, Secrets 이름, S3 URL |
-| `release.yaml` | Secrets 이름, S3 URL, Webhook |
-| `release-mas.yaml` | macOS App Store Secrets 이름 |
-| `e2e-functional-template.yml` | `MM_TEST_*`, E2E Secrets 이름, S3 URL |
-| `e2e-functional.yml` | `MM_TEST_*` 환경변수 |
-| `compatibility-matrix-testing.yml` | `MM_TEST_SERVER_URL`, `MM_SERVER_VERSION` |
+모든 워크플로우의 `MM_*` Secret/환경변수가 `OKRBEST_*`로 변경됨:
+- `release.yaml` - Secrets, 환경변수, Webhook 알림 변경 완료
+- `build-for-pr.yml` - macOS Secrets 변경 완료
+- `nightly-main.yml` - Secrets, S3 URL, Webhook 변경 완료
+- `nightly-rainforest.yml` - Secrets, S3 URL 변경 완료
+- `release-mas.yaml` - macOS App Store Secrets 변경 완료
+- `e2e-functional-template.yml` - 이미 `OKRBEST_*` 적용됨
 
 ### 5.3 스크립트 파일 수정
 

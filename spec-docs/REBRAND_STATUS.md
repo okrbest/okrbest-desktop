@@ -112,36 +112,29 @@ Modified for OKR Best project.
 
 `okrbest.admx`, `okrbest.adml` 파일명 및 내용 전부 리브랜딩 완료.
 
-### 2.6 [중간] 다국어 파일 잔여 항목
+### ~~2.6 [중간] 다국어 파일 잔여 항목~~ ✅ 완료
 
 `i18n/en.json` 내 잔여 Mattermost 참조:
 - line 326: 키 이름에 `Mattermost` 포함 (값은 `{appName}` 플레이스홀더 사용으로 무방)
 
 **기타 언어 파일** (60개+):
-- [ ] 각 언어 파일에서 "Mattermost" 문자열 확인 및 변경 필요
+- [x] 각 언어 파일에서 "Mattermost" 문자열 확인 및 변경 필요
 
 검색 명령:
 ```bash
 rg "Mattermost" i18n/ --include="*.json"
 ```
 
-### 2.7 [중간] 워크플로우 인프라 (인프라 준비 후 진행)
+### ~~2.7 [중간] 워크플로우 인프라~~ ✅ 완료
 
-아래 항목은 OKR Best 자체 인프라가 준비된 후 변경:
+- S3 버킷 URL: `releases.okrbest.com/desktop/`로 변경 완료
+- 알림 Webhook: `mattermost/action-mattermost-notify` → curl webhook으로 대체 완료
+- GitHub Secrets: 모든 `MM_*` prefix → `OKRBEST_*` prefix로 변경 완료 (5개 워크플로우)
+- 환경변수: `MM_WIN_INSTALLERS` → `OKRBEST_WIN_INSTALLERS` 변경 완료
 
-**S3 버킷 URL:**
-- `release.yaml` (lines 227, 229): `s3://releases.mattermost.com/desktop/`
-- `nightly-main.yml` (lines 253, 255, 263, 265, 267): `s3://releases.mattermost.com/desktop/`
-
-**알림 Webhook:**
-- `release.yaml`: Mattermost 알림 username/icon → OKR Best로 변경 또는 Slack/Discord로 대체
-
-**외부 Actions:**
-- `mattermost/action-mattermost-notify` → 포크 또는 대체 액션 사용
-- `mattermost/actions/delivery/update-commit-status` → `actions/github-script`로 대체
-
-**GitHub Secrets 이름 변경:**
-- 기존 `MM_*` prefix → `OKRBEST_*` prefix (CI_CD.md 참조)
+**남은 작업 (인프라 준비 후):**
+- [ ] GitHub Secrets에 실제 값 등록 (AWS 자격증명, macOS 인증서 등)
+- [ ] AWS S3 버킷 생성 (`releases.okrbest.com`, `okrbest-desktop-daily-builds`)
 
 ### 2.8 [높음] 코드 서명 - GitHub Secrets 등록
 

@@ -119,13 +119,13 @@ jobs:
     runs-on: macos-15
     env:
       MACOS_NOTIFICATION_STATE_NO_SDK_CHECK: true
-      MAS_PROFILE: ${{ secrets.MM_DESKTOP_MAC_APP_STORE_MAS_PROFILE }}
-      MACOS_API_KEY_ID: ${{ secrets.MM_DESKTOP_MAC_APP_STORE_MACOS_API_KEY_ID }}
-      MACOS_API_KEY: ${{ secrets.MM_DESKTOP_MAC_APP_STORE_MACOS_API_KEY }}
-      MACOS_API_ISSUER_ID: ${{ secrets.MM_DESKTOP_MAC_APP_STORE_MACOS_API_ISSUER_ID }}
+      MAS_PROFILE: ${{ secrets.OKRBEST_DESKTOP_MAC_APP_STORE_MAS_PROFILE }}
+      MACOS_API_KEY_ID: ${{ secrets.OKRBEST_DESKTOP_MAC_APP_STORE_MACOS_API_KEY_ID }}
+      MACOS_API_KEY: ${{ secrets.OKRBEST_DESKTOP_MAC_APP_STORE_MACOS_API_KEY }}
+      MACOS_API_ISSUER_ID: ${{ secrets.OKRBEST_DESKTOP_MAC_APP_STORE_MACOS_API_ISSUER_ID }}
       CSC_FOR_PULL_REQUEST: true
-      CSC_KEY_PASSWORD: ${{ secrets.MM_DESKTOP_MAC_APP_STORE_CSC_KEY_PASSWORD}}
-      CSC_LINK: ${{ secrets.MM_DESKTOP_MAC_APP_STORE_CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ secrets.OKRBEST_DESKTOP_MAC_APP_STORE_CSC_KEY_PASSWORD}}
+      CSC_LINK: ${{ secrets.OKRBEST_DESKTOP_MAC_APP_STORE_CSC_LINK }}
     steps:
       - name: nightly/checkout-repo
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -179,14 +179,14 @@ jobs:
         uses: ./.github/actions/test
       - name: nightly/build
         env:
-          APPLE_API_KEY_ID: ${{ secrets.MM_DESKTOP_MAC_APP_STORE_MACOS_API_KEY_ID }}
-          APPLE_API_KEY_RAW: ${{ secrets.MM_DESKTOP_MAC_APP_STORE_MACOS_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.OKRBEST_DESKTOP_MAC_APP_STORE_MACOS_API_KEY_ID }}
+          APPLE_API_KEY_RAW: ${{ secrets.OKRBEST_DESKTOP_MAC_APP_STORE_MACOS_API_KEY }}
           APPLE_API_KEY: "./key.p8"
-          APPLE_API_ISSUER: ${{ secrets.MM_DESKTOP_MAC_APP_STORE_MACOS_API_ISSUER_ID }}
+          APPLE_API_ISSUER: ${{ secrets.OKRBEST_DESKTOP_MAC_APP_STORE_MACOS_API_ISSUER_ID }}
           CSC_FOR_PULL_REQUEST: true
-          CSC_KEY_PASSWORD: ${{ secrets.MM_DESKTOP_MAC_INSTALLER_CSC_KEY_PASSWORD }}
-          CSC_LINK: ${{ secrets.MM_DESKTOP_MAC_INSTALLER_CSC_LINK }}
-          MAC_PROFILE: ${{ secrets.MM_DESKTOP_MAC_INSTALLER_DMG_PROFILE }}
+          CSC_KEY_PASSWORD: ${{ secrets.OKRBEST_DESKTOP_MAC_INSTALLER_CSC_KEY_PASSWORD }}
+          CSC_LINK: ${{ secrets.OKRBEST_DESKTOP_MAC_INSTALLER_CSC_LINK }}
+          MAC_PROFILE: ${{ secrets.OKRBEST_DESKTOP_MAC_INSTALLER_DMG_PROFILE }}
         run: |
           echo $MAC_PROFILE | base64 -D > ./mac.provisionprofile
           zsh -c 'echo -n $APPLE_API_KEY_RAW > ./key.p8'
@@ -221,8 +221,8 @@ jobs:
         uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6.0.0
         with:
           aws-region: us-east-1
-          aws-access-key-id: ${{ secrets.MM_DESKTOP_RELEASE_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.MM_DESKTOP_RELEASE_AWS_SECRET_ACCESS_KEY }}
+          aws-access-key-id: ${{ secrets.OKRBEST_DESKTOP_RELEASE_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.OKRBEST_DESKTOP_RELEASE_AWS_SECRET_ACCESS_KEY }}
       - name: nightly/download-builds
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
@@ -265,11 +265,11 @@ jobs:
         uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6.0.0
         with:
           aws-region: us-east-1
-          role-to-assume: ${{ secrets.MM_DESKTOP_RELEASE_AWS_ROLE_TO_ASSUME }}
+          role-to-assume: ${{ secrets.OKRBEST_DESKTOP_RELEASE_AWS_ROLE_TO_ASSUME }}
       - name: nightly/upload-to-s3-new-bucket
-        run: aws s3 cp ./aws-s3-dist/ s3://${{ secrets.MM_DESKTOP_RELEASE_BUCKET }} --cache-control "no-cache" --recursive
+        run: aws s3 cp ./aws-s3-dist/ s3://${{ secrets.OKRBEST_DESKTOP_RELEASE_BUCKET }} --cache-control "no-cache" --recursive
       - name: nightly/upload-latest-version-new-bucket
-        run: aws s3 cp ./${{ steps.generate-latest.outputs.FILENAME }} s3://${{ secrets.MM_DESKTOP_RELEASE_BUCKET }}/${{ steps.generate-latest.outputs.FILENAME }} --cache-control "no-cache"
+        run: aws s3 cp ./${{ steps.generate-latest.outputs.FILENAME }} s3://${{ secrets.OKRBEST_DESKTOP_RELEASE_BUCKET }}/${{ steps.generate-latest.outputs.FILENAME }} --cache-control "no-cache"
 
   share-links-to-channel:
     runs-on: ubuntu-22.04
@@ -283,4 +283,4 @@ jobs:
           --arg username "NightBuilder" \
           --arg text "${{ needs.upload-to-s3.outputs.links }}" \
           '{"username":$username,"icon_url": $icon_url, "text": $text }' > /tmp/webhook-data.json
-          curl -i -X POST -H "Content-Type: application/json" -d @/tmp/webhook-data.json ${{ secrets.MM_DESKTOP_NIGHTLY_WEBHOOK_URL }}
+          curl -i -X POST -H "Content-Type: application/json" -d @/tmp/webhook-data.json ${{ secrets.OKRBEST_DESKTOP_NIGHTLY_WEBHOOK_URL }}
