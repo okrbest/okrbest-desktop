@@ -52,7 +52,7 @@ export const URLValidationStatus = {
     Invalid: 'INVALID',
     Insecure: 'INSECURE',
     URLExists: 'URL_EXISTS',
-    NotMattermost: 'NOT_MATTERMOST',
+    NotOKRBest: 'NOT_OKRBEST',
     URLNotMatched: 'URL_NOT_MATCHED',
     URLUpdated: 'URL_UPDATED',
     PreAuthRequired: 'PREAUTH_REQUIRED',

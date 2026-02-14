@@ -362,9 +362,9 @@ export class ServerHub {
                 );
             }
 
-            log.debug('handleServerURLValidation: Remote info is missing, returning NotMattermost');
+            log.debug('handleServerURLValidation: Remote info is missing, returning NotOKRBest');
             return {
-                status: URLValidationStatus.NotMattermost,
+                status: URLValidationStatus.NotOKRBest,
                 validatedURL: parsedURL.toString().replace(/\/$/, ''),
             };
         }

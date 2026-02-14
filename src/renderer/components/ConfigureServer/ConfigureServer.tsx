@@ -172,10 +172,10 @@ function ConfigureServer({
             };
         }
 
-        if (validationResult?.status === URLValidationStatus.NotMattermost) {
+        if (validationResult?.status === URLValidationStatus.NotOKRBest) {
             message = {
                 type: STATUS.WARNING,
-                value: formatMessage({id: 'renderer.components.configureServer.url.notMattermost', defaultMessage: 'The server URL provided does not appear to point to a valid Mattermost server. Please verify the URL and check your connection.'}),
+                value: formatMessage({id: 'renderer.components.configureServer.url.notOKRBest', defaultMessage: 'The server URL provided does not appear to point to a valid OKR Best server. Please verify the URL and check your connection.'}),
             };
         }
 

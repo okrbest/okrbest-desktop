@@ -160,7 +160,7 @@
   "renderer.downloadsDropdown.Downloads": "Preuzimanja",
   "renderer.downloadsDropdown.Update.ANewVersionIsAvailableToInstall": "Postoji nova verzija za {appName} (verzija {version}) .",
   "renderer.downloadsDropdown.Update.DownloadUpdate": "Preuzmi novu verziju",
-  "renderer.downloadsDropdown.Update.MattermostVersionX": "{appName} verzija {version}",
+  "renderer.downloadsDropdown.Update.VersionX": "{appName} verzija {version}",
   "renderer.downloadsDropdown.Update.NewDesktopVersionAvailable": "Postoji nova desktop verzija",
   "renderer.downloadsDropdown.Update.RestartAndUpdate": "Pokreni ponovo i aktualiziraj",
   "renderer.downloadsDropdown.remaining": "presotalo",

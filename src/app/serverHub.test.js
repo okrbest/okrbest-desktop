@@ -432,7 +432,7 @@ describe('app/serverViewState', () => {
             }));
 
             const result = await serverViewState.handleServerURLValidation({}, 'https://not-server.com');
-            expect(result.status).toBe(URLValidationStatus.NotMattermost);
+            expect(result.status).toBe(URLValidationStatus.NotOKRBest);
             expect(result.validatedURL).toBe('https://not-server.com');
         });
 

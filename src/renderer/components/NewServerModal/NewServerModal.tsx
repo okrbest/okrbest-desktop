@@ -207,12 +207,12 @@ class NewServerModal extends React.PureComponent<Props, State> {
                     defaultMessage: 'Your server URL is potentially insecure. For best results, use a URL with the HTTPS protocol.',
                 }),
             };
-        case URLValidationStatus.NotMattermost:
+        case URLValidationStatus.NotOKRBest:
             return {
                 type: STATUS.WARNING,
                 value: this.props.intl.formatMessage({
-                    id: 'renderer.components.newServerModal.warning.notMattermost',
-                    defaultMessage: 'The server URL provided does not appear to point to a valid Mattermost server. Please verify the URL and check your connection.',
+                    id: 'renderer.components.newServerModal.warning.notOKRBest',
+                    defaultMessage: 'The server URL provided does not appear to point to a valid OKR Best server. Please verify the URL and check your connection.',
                 }),
             };
         case URLValidationStatus.URLNotMatched:

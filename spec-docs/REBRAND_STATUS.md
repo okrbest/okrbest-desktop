@@ -108,15 +108,9 @@ Modified for OKR Best project.
 
 모든 앱 아이콘(메인, 트레이 Windows/Linux, macOS DMG 배경, 메뉴 아이콘) 교체 완료.
 
-### 2.5 [중간] Windows GPO 파일
+### ~~2.5 [중간] Windows GPO 파일~~ ✅ 완료
 
-파일명 및 내용 변경 필요:
-
-- [ ] `resources/windows/gpo/mattermost.admx` → `okrbest.admx`
-  - namespace: `OKRBest.Policies`
-  - key: `Software\Policies\OKRBest`
-- [ ] `resources/windows/gpo/en-US/mattermost.adml` → `okrbest.adml`
-  - 모든 문자열에서 Mattermost → OKR Best
+`okrbest.admx`, `okrbest.adml` 파일명 및 내용 전부 리브랜딩 완료.
 
 ### 2.6 [중간] 다국어 파일 잔여 항목
 
