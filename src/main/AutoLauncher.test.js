@@ -10,7 +10,7 @@ import {AutoLauncher} from './AutoLauncher';
 jest.mock('auto-launch', () => jest.fn());
 jest.mock('electron', () => ({
     app: {
-        name: 'Mattermost',
+        name: 'OKR Best',
     },
 }));
 

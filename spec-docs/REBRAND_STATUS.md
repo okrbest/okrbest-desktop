@@ -163,9 +163,15 @@
 | `DEFAULT_UPGRADE_LINK` | OKR Best 업그레이드 URL |
 | `DEFAULT_CHANGELOG_LINK` | OKR Best 변경 이력 URL |
 
-### 2.6 [낮음] 테스트 파일
+### ~~2.6 [낮음] 테스트 파일~~ ✅ 완료
 
-테스트 파일 내 Mattermost 문자열이 일부 존재. 기능에 영향 없으나 일관성을 위해 정리 권장.
+테스트 파일 검토 완료. 앱 동작에 영향을 주는 mock 값 2곳 수정:
+- `AutoLauncher.test.js`: `app.name` → `'OKR Best'`
+- `initialize.test.js`: 프로토콜 mock → `name: 'OKR Best'`, `schemes: ['okrbest', 'mattermost']`
+
+나머지 잔여 참조(~300곳)는 변경 불필요:
+- 저작권 헤더 (라이선스 의무), 클래스명 import (`MattermostServer` 등 소스 클래스와 일치),
+  `mattermost://` 프로토콜 테스트 (호환성), 서버 응답 mock, 테스트 도메인 URL
 
 ---
 
