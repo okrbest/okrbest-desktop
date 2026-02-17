@@ -17,6 +17,7 @@ module.exports = merge(base, {
         'macos-notification-state': 'require("macos-notification-state")',
         'windows-focus-assist': 'require("windows-focus-assist")',
         'registry-js': 'require("registry-js")',
+        'cf-prefs': 'require("cf-prefs")',
     },
     externalsPresets: {
         electronMain: true,

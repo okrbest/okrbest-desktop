@@ -131,7 +131,9 @@ export async function initialize() {
     initializeBeforeAppReady();
 
     // wait for registry config data to load and app ready event
-    await Promise.all([app.whenReady(), Config.initRegistry()]);
+    await Promise.all([
+        app.whenReady(),
+    ]);
 
     // no need to continue initializing if app is quitting
     if (global.willAppQuit) {
