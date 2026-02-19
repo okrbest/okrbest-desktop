@@ -30,7 +30,6 @@ type State = {
     unreads?: Map<string, boolean>;
     mentions?: Map<string, number>;
     expired?: Map<string, boolean>;
-    hasGPOServers?: boolean;
     isAnyDragging: boolean;
     windowBounds?: Electron.Rectangle;
     nonce?: string;
@@ -69,7 +68,6 @@ class ServerDropdown extends React.PureComponent<Record<string, never>, State> {
         windowBounds: Electron.Rectangle,
         activeServer?: string,
         enableServerManagement?: boolean,
-        hasGPOServers?: boolean,
         expired?: Map<string, boolean>,
         mentions?: Map<string, number>,
         unreads?: Map<string, boolean>,
@@ -78,7 +76,6 @@ class ServerDropdown extends React.PureComponent<Record<string, never>, State> {
             servers,
             activeServer,
             enableServerManagement,
-            hasGPOServers,
             unreads,
             mentions,
             expired,
@@ -267,7 +264,7 @@ class ServerDropdown extends React.PureComponent<Record<string, never>, State> {
                         onDragEnd={this.onDragEnd}
                     >
                         <Droppable
-                            isDropDisabled={this.state.hasGPOServers}
+                            isDropDisabled={!this.state.enableServerManagement}
                             droppableId='ServerDropdown__droppable'
                         >
                             {(provided) => (
