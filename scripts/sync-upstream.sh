@@ -38,6 +38,13 @@ CHERRY_COMMITS=$(git cherry -v $TARGET_BRANCH $UPSTREAM_BRANCH 2>/dev/null | gre
 # 이미 cherry-pick된 커밋 해시 목록 (메시지에서 추출)
 ALREADY_PICKED=$(git log $TARGET_BRANCH --grep="cherry picked from commit" --format="%b" | grep -oP "cherry picked from commit \K[a-f0-9]+" | sort -u)
 
+# 의도적으로 제외한 커밋 목록 (scripts/sync-upstream-skipped.txt)
+SKIP_FILE="$(git rev-parse --show-toplevel)/scripts/sync-upstream-skipped.txt"
+SKIPPED_LIST=""
+if [ -f "$SKIP_FILE" ]; then
+    SKIPPED_LIST=$(grep -v '^#' "$SKIP_FILE" | grep -v '^[[:space:]]*$' | while read h; do git rev-parse "$h" 2>/dev/null; done | sort -u)
+fi
+
 # cherry-pick 메시지에 있는 원본 해시는 제외
 PENDING_COMMITS=""
 for COMMIT in $CHERRY_COMMITS; do
@@ -46,6 +53,12 @@ for COMMIT in $CHERRY_COMMITS; do
     # 이미 cherry-pick된 커밋인지 확인
     if echo "$ALREADY_PICKED" | grep -q "^${FULL_HASH}$"; then
         echo -e "  ${YELLOW}스킵${NC}: ${FULL_HASH:0:8} (이미 cherry-pick됨, 충돌 해결로 patch-id 변경)"
+        continue
+    fi
+    
+    # 의도적으로 제외한 커밋인지 확인
+    if [ -n "$SKIPPED_LIST" ] && echo "$SKIPPED_LIST" | grep -q "^${FULL_HASH}$"; then
+        echo -e "  ${YELLOW}스킵${NC}: ${FULL_HASH:0:8} (sync-upstream-skipped.txt에 등록됨)"
         continue
     fi
     
@@ -111,6 +124,8 @@ for COMMIT in $PENDING_COMMITS; do
         echo -e "${RED}충돌이 발생했습니다. 다음 중 선택하세요:${NC}"
         echo "  1. 충돌 해결 후 'git cherry-pick --continue' 실행"
         echo "  2. 건너뛰기: 'git cherry-pick --skip'"
+        echo "     → 스킵 후 scripts/sync-upstream-skipped.txt에 해당 커밋 해시를 추가하면"
+        echo "       다음 동기화 시 반복 cherry-pick을 방지할 수 있습니다."
         echo "  3. 중단: 'git cherry-pick --abort'"
         exit 1
     fi
