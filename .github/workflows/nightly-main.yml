@@ -221,8 +221,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6.0.0
         with:
           aws-region: us-east-1
-          aws-access-key-id: ${{ secrets.OKRBEST_DESKTOP_RELEASE_AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.OKRBEST_DESKTOP_RELEASE_AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ secrets.OKRBEST_DESKTOP_RELEASE_AWS_ROLE_TO_ASSUME }}
       - name: nightly/download-builds
         uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
@@ -237,10 +236,15 @@ jobs:
         id: generate-latest
         run: |
           bash -x ./scripts/generate_latest_version.sh
+
       - name: nightly/upload-to-s3
-        run: aws s3 cp ./aws-s3-dist/ s3://releases.okrbest.com/desktop/ --acl public-read --cache-control "no-cache" --recursive
+        run: aws s3 cp ./aws-s3-dist/ s3://${{ secrets.OKRBEST_DESKTOP_RELEASE_BUCKET }} --cache-control "no-cache" --recursive
+
       - name: nightly/upload-latest-version
-        run: aws s3 cp ./${{ steps.generate-latest.outputs.FILENAME }} s3://releases.okrbest.com/desktop/${{ steps.generate-latest.outputs.FILENAME }} --acl public-read --cache-control "no-cache"
+        env:
+          FILENAME: ${{ steps.generate-latest.outputs.FILENAME }}
+          BUCKET: ${{ secrets.OKRBEST_DESKTOP_RELEASE_BUCKET }}
+        run: aws s3 cp ./"$FILENAME" "s3://${BUCKET}/desktop/${FILENAME}" --cache-control "no-cache"
       - name: nightly/generate-linklist
         id: generate-linklist
         run: |
@@ -259,17 +263,6 @@ jobs:
           echo 'linklist<<EOF' >> $GITHUB_OUTPUT
           echo "$LINKLIST" >> $GITHUB_OUTPUT
           echo 'EOF' >> $GITHUB_OUTPUT
-
-      # Upload artifacts new bucket
-      - name: nightly/setup-aws-credentials-new-bucket
-        uses: aws-actions/configure-aws-credentials@8df5847569e6427dd6c4fb1cf565c83acfa8afa7 # v6.0.0
-        with:
-          aws-region: us-east-1
-          role-to-assume: ${{ secrets.OKRBEST_DESKTOP_RELEASE_AWS_ROLE_TO_ASSUME }}
-      - name: nightly/upload-to-s3-new-bucket
-        run: aws s3 cp ./aws-s3-dist/ s3://${{ secrets.OKRBEST_DESKTOP_RELEASE_BUCKET }} --cache-control "no-cache" --recursive
-      - name: nightly/upload-latest-version-new-bucket
-        run: aws s3 cp ./${{ steps.generate-latest.outputs.FILENAME }} s3://${{ secrets.OKRBEST_DESKTOP_RELEASE_BUCKET }}/${{ steps.generate-latest.outputs.FILENAME }} --cache-control "no-cache"
 
   share-links-to-channel:
     runs-on: ubuntu-22.04
