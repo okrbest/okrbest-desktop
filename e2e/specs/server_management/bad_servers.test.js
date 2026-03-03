@@ -156,7 +156,7 @@ describe('Bad Server Configurations', function desc() {
             errorInfo.should.include('ERR_NAME_NOT_RESOLVED');
         });
 
-        it('should handle pre-configured unreachable server and still allow login to working Mattermost server', async () => {
+        it('should handle pre-configured unreachable server and still allow login to working OKR Best server', async () => {
             const mattermostConfig = env.demoMattermostConfig;
             const badConfig = {
                 ...mattermostConfig,

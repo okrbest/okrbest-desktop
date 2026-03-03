@@ -15,7 +15,7 @@ VERSION="$1" # such as 3.7.1, 4.0.0-rc1
 BASE_URL="https://releases.okrbest.com/desktop/${VERSION}"
 
 cat <<-MD
-### Mattermost Desktop v${VERSION} has been cut!
+### OKR Best Desktop v${VERSION} has been cut!
 
 Release notes can be found here: https://docs.okrbest.com/install/desktop-app-changelog.html
 
