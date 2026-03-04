@@ -8,7 +8,8 @@
     CERTUM_USERID   - SimplySign 계정 이메일
 
   사용법:
-    pwsh -ExecutionPolicy Bypass -File ./scripts/certum-sign.ps1 -FilePath "release/**/okrbest-desktop*.exe"
+    pwsh -ExecutionPolicy Bypass -File ./scripts/certum-sign.ps1 -FilePath "release/win*-unpacked/*.exe"
+    pwsh -ExecutionPolicy Bypass -File ./scripts/certum-sign.ps1 -FilePath "release/*.msi"
 #>
 
 param(
@@ -23,12 +24,10 @@ $OtpUri  = $env:CERTUM_OTP_URI
 $UserId  = $env:CERTUM_USERID
 
 if (-not $OtpUri) {
-    Write-Host "::warning::CERTUM_OTP_URI not set. Skipping code signing."
-    exit 0
+    throw "CERTUM_OTP_URI not set. Failing code signing step."
 }
 if (-not $UserId) {
-    Write-Host "::warning::CERTUM_USERID not set. Skipping code signing."
-    exit 0
+    throw "CERTUM_USERID not set. Failing code signing step."
 }
 
 # === 2. otpauth:// URI 파싱 ==================================================
@@ -49,8 +48,11 @@ $Digits    = if ($q['digits']) { [int]$q['digits'] } else { 6 }
 $Period    = if ($q['period']) { [int]$q['period'] } else { 30 }
 $Algorithm = if ($q['algorithm']) { $q['algorithm'].ToUpper() } else { 'SHA1' }
 
-if ($Algorithm -ne 'SHA1') {
-    throw "This helper only implements HMAC-SHA1 (requested: $Algorithm)."
+if (-not $Base32) {
+    throw "Invalid CERTUM_OTP_URI: missing 'secret' parameter."
+}
+if ($Algorithm -ne 'SHA1' -and $Algorithm -ne 'SHA256') {
+    throw "This helper implements HMAC-SHA1 and HMAC-SHA256 only (requested: $Algorithm)."
 }
 
 # === 3. TOTP 생성기 ==========================================================
@@ -86,7 +88,7 @@ public static class Totp
         return bytes;
     }
 
-    public static string Now(string secret, int digits, int period)
+    public static string Now(string secret, int digits, int period, string algorithm)
     {
         byte[] key = Base32Decode(secret);
         long counter = DateTimeOffset.UtcNow.ToUnixTimeSeconds() / period;
@@ -94,7 +96,16 @@ public static class Totp
         byte[] cnt = BitConverter.GetBytes(counter);
         if (BitConverter.IsLittleEndian) Array.Reverse(cnt);
 
-        byte[] hash = new HMACSHA1(key).ComputeHash(cnt);
+        byte[] hash;
+        if (algorithm == "SHA256")
+        {
+            hash = new HMACSHA256(key).ComputeHash(cnt);
+        }
+        else
+        {
+            hash = new HMACSHA1(key).ComputeHash(cnt);
+        }
+
         int offset = hash[hash.Length - 1] & 0x0F;
         int binary =
             ((hash[offset]     & 0x7F) << 24) |
@@ -109,8 +120,45 @@ public static class Totp
 "@
 
 function Get-TotpCode {
-    param([string]$Secret, [int]$Digits=6, [int]$Period=30)
-    [Totp]::Now($Secret, $Digits, $Period)
+    param([string]$Secret, [int]$Digits=6, [int]$Period=30, [string]$Algorithm='SHA1')
+    [Totp]::Now($Secret, $Digits, $Period, $Algorithm)
+}
+
+function Escape-SendKeysText {
+    param([string]$Text)
+
+    if ($null -eq $Text) {
+        return ""
+    }
+
+    # WScript.Shell SendKeys 특수문자 이스케이프
+    $escaped = $Text
+    $escaped = $escaped.Replace('{', '{{}')
+    $escaped = $escaped.Replace('}', '{}}')
+    $escaped = $escaped.Replace('+', '{+}')
+    $escaped = $escaped.Replace('^', '{^}')
+    $escaped = $escaped.Replace('%', '{%}')
+    $escaped = $escaped.Replace('~', '{~}')
+    $escaped = $escaped.Replace('(', '{(}')
+    $escaped = $escaped.Replace(')', '{)}')
+    $escaped = $escaped.Replace('[', '{[}')
+    $escaped = $escaped.Replace(']', '{]}')
+    return $escaped
+}
+
+function Wait-ForCodeSigningCert {
+    param([int]$TimeoutSeconds = 30)
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    while ((Get-Date) -lt $deadline) {
+        $certs = @(Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert -ErrorAction SilentlyContinue)
+        if ($certs.Count -gt 0) {
+            return $true
+        }
+        Start-Sleep -Seconds 1
+    }
+
+    return $false
 }
 
 # === 4. SimplySign Desktop 설치 ==============================================
@@ -141,7 +189,7 @@ if (-not (Test-Path $SimplySignExe)) {
 
 # === 5. SimplySign 인증 ======================================================
 Write-Host "Generating TOTP code..."
-$otp = Get-TotpCode -Secret $Base32 -Digits $Digits -Period $Period
+$otp = Get-TotpCode -Secret $Base32 -Digits $Digits -Period $Period -Algorithm $Algorithm
 Write-Host "TOTP code generated."
 
 Write-Host "Launching SimplySign Desktop..."
@@ -167,20 +215,35 @@ if (-not $focused) {
 
 # TOTP 입력
 Start-Sleep -Milliseconds 400
-$wshell.SendKeys("$otp{ENTER}")
-Write-Host "TOTP credentials sent to SimplySign Desktop."
+
+$escapedUserId = Escape-SendKeysText -Text $UserId
+$escapedOtp = Escape-SendKeysText -Text $otp
+
+# Hosted runner 신규 설치 환경을 고려해 Username + Token 모두 입력 시도
+$wshell.SendKeys("^a")
+Start-Sleep -Milliseconds 200
+$wshell.SendKeys($escapedUserId)
+Start-Sleep -Milliseconds 150
+$wshell.SendKeys("{TAB}")
+Start-Sleep -Milliseconds 150
+$wshell.SendKeys($escapedOtp)
+Start-Sleep -Milliseconds 150
+$wshell.SendKeys("{ENTER}")
+Write-Host "Username and TOTP credentials sent to SimplySign Desktop."
 
 # 인증 대기
 Write-Host "Waiting for SimplySign authentication..."
-Start-Sleep -Seconds 10
+if (-not (Wait-ForCodeSigningCert -TimeoutSeconds 30)) {
+    throw "No code signing certificate detected in Windows Certificate Store after authentication."
+}
+Write-Host "Code signing certificate detected."
 
 # === 6. signtool 서명 ========================================================
 Write-Host "Signing files matching: $FilePath"
 
 $files = Get-ChildItem -Path $FilePath -Recurse -ErrorAction SilentlyContinue
 if ($files.Count -eq 0) {
-    Write-Host "::warning::No files found matching pattern: $FilePath"
-    exit 0
+    throw "No files found matching pattern: $FilePath"
 }
 
 $signtool = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\signtool.exe"
@@ -202,6 +265,11 @@ foreach ($file in $files) {
     & $signtool sign /fd sha256 /tr http://time.certum.pl /td sha256 /a "$($file.FullName)"
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to sign: $($file.FullName)"
+    }
+
+    & $signtool verify /pa "$($file.FullName)"
+    if ($LASTEXITCODE -ne 0) {
+        throw "Signature verification failed: $($file.FullName)"
     }
     Write-Host "Successfully signed: $($file.Name)"
 }

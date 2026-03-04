@@ -125,19 +125,19 @@ jobs:
           mkdir -p ./build/win
           npm run package:windows
       - name: ci/sign-windows-exe
-        if: ${{ secrets.CERTUM_OTP_URI != '' }}
+        if: ${{ secrets.CERTUM_OTP_URI != '' && secrets.CERTUM_USERID != '' }}
         shell: powershell
         env:
           CERTUM_OTP_URI: ${{ secrets.CERTUM_OTP_URI }}
           CERTUM_USERID: ${{ secrets.CERTUM_USERID }}
-        run: pwsh -ExecutionPolicy Bypass -File ./scripts/certum-sign.ps1 -FilePath "release/**/okrbest-desktop*.exe"
+        run: pwsh -ExecutionPolicy Bypass -File ./scripts/certum-sign.ps1 -FilePath "release/win*-unpacked/*.exe"
       - name: ci/sign-windows-msi
-        if: ${{ secrets.CERTUM_OTP_URI != '' }}
+        if: ${{ secrets.CERTUM_OTP_URI != '' && secrets.CERTUM_USERID != '' }}
         shell: powershell
         env:
           CERTUM_OTP_URI: ${{ secrets.CERTUM_OTP_URI }}
           CERTUM_USERID: ${{ secrets.CERTUM_USERID }}
-        run: pwsh -ExecutionPolicy Bypass -File ./scripts/certum-sign.ps1 -FilePath "release/**/okrbest-desktop*.msi"
+        run: pwsh -ExecutionPolicy Bypass -File ./scripts/certum-sign.ps1 -FilePath "release/*.msi"
       - name: ci/package
         run: bash -x ./scripts/cp_artifacts.sh release ./build/win
       - name: ci/upload-build

@@ -56,19 +56,19 @@ jobs:
           OKRBEST_WIN_INSTALLERS: 1
         run: npm run package:windows-msi
       - name: nightly/sign-windows-exe
-        if: ${{ secrets.CERTUM_OTP_URI != '' }}
+        if: ${{ secrets.CERTUM_OTP_URI != '' && secrets.CERTUM_USERID != '' }}
         shell: powershell
         env:
           CERTUM_OTP_URI: ${{ secrets.CERTUM_OTP_URI }}
           CERTUM_USERID: ${{ secrets.CERTUM_USERID }}
-        run: pwsh -ExecutionPolicy Bypass -File ./scripts/certum-sign.ps1 -FilePath "release/**/okrbest-desktop*.exe"
+        run: pwsh -ExecutionPolicy Bypass -File ./scripts/certum-sign.ps1 -FilePath "release/win*-unpacked/*.exe"
       - name: nightly/sign-windows-msi
-        if: ${{ secrets.CERTUM_OTP_URI != '' }}
+        if: ${{ secrets.CERTUM_OTP_URI != '' && secrets.CERTUM_USERID != '' }}
         shell: powershell
         env:
           CERTUM_OTP_URI: ${{ secrets.CERTUM_OTP_URI }}
           CERTUM_USERID: ${{ secrets.CERTUM_USERID }}
-        run: pwsh -ExecutionPolicy Bypass -File ./scripts/certum-sign.ps1 -FilePath "release/**/okrbest-desktop*.msi"
+        run: pwsh -ExecutionPolicy Bypass -File ./scripts/certum-sign.ps1 -FilePath "release/*.msi"
       - name: nightly/package
         run: |
           mkdir -p ./build/win

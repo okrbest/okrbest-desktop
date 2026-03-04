@@ -91,64 +91,77 @@ git push origin v1.0.0
 
 ### 3.1 Windows 코드 서명 (Certum SimplySign)
 
-**인증서 상태**: Certum Standard Code Signing in the Cloud (365일) - ✅ 활성화 완료
-**조직**: OKRBEST Inc. (경기도 안양시, KR)
-**유효 기간**: 2026-02-14 ~ 2027-02-14
+**인증서 상태**: Certum Standard Code Signing in the Cloud (365일) - ✅ 활성화 완료  
+**조직**: OKRBEST Inc. (경기도 안양시, KR)  
+**유효 기간**: 2026-02-14 ~ 2027-02-14  
 **Serial**: `0e20f726ad841afdc64745642c4327b9`
 
-`electron-builder.json`의 `"sign": false`는 유지합니다.
-클라우드 서명은 빌드 후 `scripts/certum-sign.ps1` 스크립트에서 별도 실행됩니다.
+`electron-builder.json`의 `"sign": false`는 유지합니다. 클라우드 서명은 빌드 후 `scripts/certum-sign.ps1`에서 별도 실행됩니다.
 
-#### 서명 흐름
+> **상세 가이드**: [spec-docs/Certum-SimplySign.md](Certum-SimplySign.md) (Certum 공식 문서 기준)
 
-```
-npm run package:windows (sign: false로 서명 없이 빌드)
-    ↓
-certum-sign.ps1 실행:
-  1. SimplySign Desktop 설치 (없는 경우)
-  2. otpauth:// URI에서 TOTP 자동 생성
-  3. SimplySign Desktop 인증
-  4. signtool.exe로 .exe/.msi 서명
+#### Runner 및 서명 방식
+
+| 방식 | 현재 사용 | 설명 |
+|------|----------|------|
+| **GitHub Hosted** (windows-2022) | ✅ | TOTP 자동화(certum-sign.ps1)로 매 빌드마다 SimplySign 설치·로그인 후 서명 |
+| **Self-hosted Windows Runner** | - | 로그인 세션 유지 중일 때 TOTP 없이 서명 (세션 만료 시 재인증). 실무 Best Practice |
+
+#### 초보자 빠른 시작 (GitHub Hosted)
+
+1. Certum 인증서 활성화 + SimplySign Mobile 활성화 완료
+2. 활성화 QR 코드를 1Password로 스캔해서 `otpauth://...` URI 확보
+3. GitHub Secrets 등록
+   - `CERTUM_OTP_URI`: `otpauth://totp/...` 전체 URI
+   - `CERTUM_USERID`: SimplySign 계정 이메일
+4. Windows 빌드 워크플로우 실행 (`release.yaml` 또는 PR 빌드)
+5. Actions 로그에서 아래 문구 확인
+   - `TOTP code generated.`
+   - `Using signtool:`
+   - `Successfully signed:`
+6. 빌드 아티팩트 다운로드 후 서명 검증
+
+```powershell
+signtool verify /pa path\to\okrbest-desktop.exe
+signtool verify /pa path\to\okrbest-desktop.msi
 ```
 
 #### 필요한 GitHub Secrets (2개)
 
-| Secret | 용도 | 값 |
-|--------|------|-----|
-| `CERTUM_OTP_URI` | SimplySign QR 코드의 `otpauth://totp/...` 전체 URI | (QR 코드에서 추출) |
-| `CERTUM_USERID` | SimplySign 계정 이메일 | `sdh@okr.best` |
+| Secret | 용도 |
+|--------|------|
+| `CERTUM_OTP_URI` | `otpauth://totp/...?secret=...&period=30` 전체 URI (1Password로 QR 스캔 후 추출) |
+| `CERTUM_USERID` | SimplySign 계정 이메일 |
 
-> Secret이 등록되면 워크플로우 서명 단계가 자동 활성화됩니다.
-> 조건: `if: ${{ secrets.CERTUM_OTP_URI != '' }}`
+조건: `if: ${{ secrets.CERTUM_OTP_URI != '' && secrets.CERTUM_USERID != '' }}`로 두 Secret이 모두 있을 때만 서명 단계 활성화.
 
-#### 워크플로우 설정 (적용 완료)
+#### 워크플로우 (적용 완료)
 
-`release.yaml`, `build-for-pr.yml`, `nightly-main.yml`, `nightly-rainforest.yml`에
-Certum SimplySign 서명 단계 설정됨:
+`release.yaml`, `build-for-pr.yml`, `nightly-main.yml`, `nightly-rainforest.yml`:
 
 ```yaml
 - name: release/sign-windows-exe
-  if: ${{ secrets.CERTUM_OTP_URI != '' }}
+  if: ${{ secrets.CERTUM_OTP_URI != '' && secrets.CERTUM_USERID != '' }}
   shell: powershell
   env:
     CERTUM_OTP_URI: ${{ secrets.CERTUM_OTP_URI }}
     CERTUM_USERID: ${{ secrets.CERTUM_USERID }}
-  run: pwsh -ExecutionPolicy Bypass -File ./scripts/certum-sign.ps1 -FilePath "release/**/okrbest-desktop*.exe"
+  run: pwsh -ExecutionPolicy Bypass -File ./scripts/certum-sign.ps1 -FilePath "release/win*-unpacked/*.exe"
 ```
 
-#### otpauth:// URI 추출 방법
+#### 첫 실행 성공 판정 (초보자용)
 
-1. SimplySign 설정 시 표시된 QR 코드를 1Password 등 다른 인증 앱으로 스캔
-2. 앱 편집 화면에서 `otpauth://totp/...` URI 전체를 복사
-3. GitHub Secrets에 `CERTUM_OTP_URI`로 등록
+아래 3가지를 모두 만족하면 정상입니다.
 
-참고: [Certum SimplySign 자동화 가이드](https://www.devas.life/how-to-automate-signing-your-windows-app-with-certum/)
+1. Actions 로그에 `Successfully signed:`가 `.exe`, `.msi` 각각 출력됨
+2. `Failing code signing step` 또는 `No files found matching pattern` 오류가 없음
+3. 아티팩트에 대해 `signtool verify /pa` 검증 성공
 
 #### 서명 없이 배포 시 영향
 
 | 항목 | 영향 |
 |------|------|
-| SmartScreen | "Windows가 PC를 보호했습니다" 경고 표시 |
+| SmartScreen | "Windows가 PC를 보호했습니다" 경고 |
 | 사용자 경험 | "추가 정보" → "실행" 클릭 필요 |
 | 기업 환경 | IT 정책으로 설치 차단 가능 |
 
