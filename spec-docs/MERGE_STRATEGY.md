@@ -203,7 +203,6 @@ git push origin --delete feature/new-feature
 │  ──────────────────────────────────                         │
 │  $ git checkout upstream-master                             │
 │  $ git merge --ff-only upstream/master                      │
-│  $ git tag upstream-sync-v6.2.0  # 버전 태그               │
 │                                                             │
 │  Step 3: 가져올 커밋 확인 (Patch-ID 기반)                   │
 │  ────────────────────────────────────────                   │
@@ -215,9 +214,9 @@ git push origin --delete feature/new-feature
 │  $ git checkout master                                      │
 │  $ git cherry-pick -x <commit-hash>                         │
 │                                                             │
-│  Step 5: 동기화 완료 태그                                   │
-│  ─────────────────────────                                  │
-│  $ git tag okrbest-sync-v6.2.0                             │
+│  Step 5: 동기화 완료 태그 (형식: upstream-sync/YYYYMMDD/해시8자리) │
+│  ─────────────────────────────────────────────────────────  │
+│  $ git tag upstream-sync/$(date +%Y%m%d)/$(git rev-parse --short=8 HEAD) │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -253,7 +252,23 @@ Date:   Mon Jan 6 2025
     ↑ 이 정보로 원본 커밋 추적 가능
 ```
 
-### 4.4 동기화 주기
+### 4.4 동기화 태그 규칙
+
+동기화 완료 시점에 태그를 생성하여 이력을 추적합니다.
+
+**태그 형식:** `upstream-sync/YYYYMMDD/해시8자리`
+
+| 구성 | 설명 | 예시 |
+| ---- | ---- | ---- |
+| `upstream-sync/` | 접두사 | 고정 |
+| `YYYYMMDD` | 동기화 날짜 | 20240304 |
+| `해시8자리` | 현재 HEAD 커밋 8자리 해시 | a1b2c3d4 |
+
+**예시:** `upstream-sync/20240304/a1b2c3d4`
+
+`scripts/sync-upstream.sh` 실행 시 cherry-pick 완료 후 자동으로 태그 생성 여부를 묻습니다.
+
+### 4.5 동기화 주기
 
 | 유형            | 주기      | 대상                |
 | --------------- | --------- | ------------------- |
@@ -456,8 +471,8 @@ git checkout -b sync/upstream-$(date +%Y%m%d)
 git cherry-pick -x abc123
 git cherry-pick -x def456
 
-# 4. 동기화 완료 태그
-git tag okrbest-sync-$(date +%Y%m%d)
+# 4. 동기화 완료 태그 (형식: upstream-sync/YYYYMMDD/해시8자리)
+git tag upstream-sync/$(date +%Y%m%d)/$(git rev-parse --short=8 HEAD)
 
 # 5. 푸시 및 PR 생성
 git push origin sync/upstream-$(date +%Y%m%d) --tags
@@ -1114,8 +1129,7 @@ git show <commit> | git patch-id
 
 ### 2024-01-15: v6.2.0 동기화
 
-- 태그: okrbest-sync-20240115
-- 원본: upstream-sync-v6.2.0
+- 태그: upstream-sync/20240115/def45678
 - 반영 커밋:
   - abc123 → def456 (fix: 알림 버그)
   - 789abc → 012def (feat: 새 기능)
@@ -1123,7 +1137,7 @@ git show <commit> | git patch-id
 
 ### 2024-01-01: v6.1.0 동기화
 
-- 태그: okrbest-sync-20240101
+- 태그: upstream-sync/20240101/abc12345
 - ...
 ```
 

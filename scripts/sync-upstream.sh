@@ -139,7 +139,20 @@ echo -e "성공: ${GREEN}$SUCCESS_COUNT${NC}개"
 echo -e "실패: ${RED}$FAIL_COUNT${NC}개"
 echo "----------------------------------------"
 
-# 9. 원래 브랜치로 복귀 여부
+# 9. 동기화 완료 태그 생성 (MERGE_STRATEGY.md: upstream-sync/YYYYMMDD/해시8자리)
+HEAD_HASH=$(git rev-parse --short=8 HEAD)
+SYNC_TAG="upstream-sync/$(date +%Y%m%d)/${HEAD_HASH}"
+echo ""
+read -p "동기화 완료 태그를 생성하시겠습니까? [$SYNC_TAG] (Y/n): " TAG_CONFIRM
+if [[ ! "$TAG_CONFIRM" =~ ^[Nn]$ ]]; then
+    if git tag -a "$SYNC_TAG" -m "Upstream sync completed $(date +%Y-%m-%d)"; then
+        echo -e "${GREEN}✓ 태그 생성: $SYNC_TAG${NC}"
+    else
+        echo -e "${YELLOW}태그 생성 실패 (이미 존재할 수 있음). 수동 생성: git tag -a $SYNC_TAG -m \"Upstream sync\"${NC}"
+    fi
+fi
+
+# 10. 원래 브랜치로 복귀 여부
 echo ""
 read -p "원래 브랜치($CURRENT_BRANCH)로 돌아가시겠습니까? (Y/n): " RETURN_CONFIRM
 
@@ -153,4 +166,4 @@ echo -e "${GREEN}=== 동기화 완료 ===${NC}"
 echo ""
 echo "다음 단계:"
 echo "  1. 변경사항 확인: git log --oneline -10"
-echo "  2. 원격 푸시: git push origin $TARGET_BRANCH"
+echo "  2. 원격 푸시 (브랜치 + 태그): git push origin $TARGET_BRANCH --tags"
