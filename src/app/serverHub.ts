@@ -1,7 +1,5 @@
 // Copyright (c) 2016-present Mattermost, Inc. All Rights Reserved.
-// Copyright (c) 2024-present OKR Best. All Rights Reserved.
 // See LICENSE.txt for license information.
-// Modified for OKR Best project.
 
 import type {IpcMainEvent, IpcMainInvokeEvent} from 'electron';
 import {ipcMain, session} from 'electron';
@@ -94,7 +92,7 @@ export class ServerHub {
 
         const modalPromise = ModalManager.addModal<{prefillURL?: string}, Server>(
             ModalConstants.NEW_SERVER_MODAL,
-            'okrbest-desktop://renderer/newServer.html',
+            'mattermost-desktop://renderer/newServer.html',
             getLocalPreload('internalAPI.js'),
             {prefillURL},
             mainWindow,
@@ -135,7 +133,7 @@ export class ServerHub {
 
         const modalPromise = ModalManager.addModal<UniqueServerWithPermissions, {server: Server; permissions: Permissions}>(
             ModalConstants.EDIT_SERVER_MODAL,
-            'okrbest-desktop://renderer/editServer.html',
+            'mattermost-desktop://renderer/editServer.html',
             getLocalPreload('internalAPI.js'),
             {server: server.toUniqueServer(), permissions: PermissionsManager.getForServer(server) ?? {}},
             mainWindow);
@@ -167,7 +165,7 @@ export class ServerHub {
 
         const modalPromise = ModalManager.addModal<null, boolean>(
             ModalConstants.REMOVE_SERVER_MODAL,
-            'okrbest-desktop://renderer/removeServer.html',
+            'mattermost-desktop://renderer/removeServer.html',
             getLocalPreload('internalAPI.js'),
             null,
             mainWindow,
@@ -363,7 +361,7 @@ export class ServerHub {
                 );
             }
 
-            log.debug('handleServerURLValidation: Remote info is missing, returning NotOKRBest');
+            log.debug('handleServerURLValidation: Remote info is missing, returning NotMattermost');
             return {
                 status: URLValidationStatus.NotOKRBest,
                 validatedURL: (originalURL ?? parsedURL.toString()).replace(/\/$/, ''),
