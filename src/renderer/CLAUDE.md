@@ -100,7 +100,7 @@ entry: {
 plugins: [
     // ...existing plugins...
     new HtmlWebpackPlugin({
-        title: 'Mattermost Desktop',
+        title: 'OKR Best Desktop',
         template: 'src/renderer/index.html',
         chunks: ['myModal'],
         filename: 'myModal.html',

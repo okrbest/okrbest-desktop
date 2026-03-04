@@ -70,14 +70,14 @@ export function getLocalPreload(file: string) {
 export function composeUserAgent(browserMode?: boolean) {
     const baseUserAgent = app.userAgentFallback.split(' ');
 
-    // filter out the Mattermost tag that gets added earlier on
-    const filteredUserAgent = baseUserAgent.filter((ua) => !ua.startsWith('Mattermost'));
+    // filter out the Mattermost/OKRBest tag that gets added earlier on
+    const filteredUserAgent = baseUserAgent.filter((ua) => !ua.startsWith('Mattermost') && !ua.startsWith('OKRBest'));
 
     if (browserMode) {
         return filteredUserAgent.join(' ');
     }
 
-    return `${filteredUserAgent.join(' ')} Mattermost/${app.getVersion()}`;
+    return `${filteredUserAgent.join(' ')} OKRBest/${app.getVersion()}`;
 }
 
 export function isStringWithLength(string: unknown): boolean {

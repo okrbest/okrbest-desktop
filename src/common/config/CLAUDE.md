@@ -21,12 +21,12 @@ Compile-time constants: `defaultServers`, `enableServerManagement`, `enableUpdat
 
 | Platform | Path |
 |---|---|
-| Windows | `%userprofile%\AppData\Roaming\Mattermost` |
-| Linux | `~/.local/share/Mattermost` or `~/.config/Mattermost` |
-| macOS (DMG) | `~/Library/Application Support/Mattermost` |
-| macOS (App Store) | `~/Library/Containers/Mattermost.Desktop/Data/Library/Application Support/Mattermost` |
+| Windows | `%userprofile%\AppData\Roaming\OKRBest.Desktop` |
+| Linux | `~/.local/share/OKRBest.Desktop` or `~/.config/OKRBest.Desktop` |
+| macOS (DMG) | `~/Library/Application Support/OKRBest.Desktop` |
+| macOS (App Store) | `~/Library/Containers/OKRBest.Desktop/Data/Library/Application Support/OKRBest.Desktop` |
 
-In dev mode, the app name is `Electron`, so the directory is `Electron` instead of `Mattermost`. This does not affect Mac App Store.
+In dev mode, the app name is `Electron`, so the directory is `Electron` instead of `OKRBest.Desktop`. This does not affect Mac App Store.
 
 ## Adding a new config property
 

@@ -1,10 +1,10 @@
-# CLAUDE.md — Mattermost Desktop App
+# CLAUDE.md — OKR Best Desktop App
 
 ## Project overview
 
-Electron application wrapping the Mattermost Web App for a native desktop experience, enabling some additional features for end-users and admins. Supports multiple simultaneous Mattermost server connections, each in its own isolated process.
+Electron application wrapping the OKR Best Web App for a native desktop experience, enabling some additional features for end-users and admins. Supports multiple simultaneous server connections, each in its own isolated process.
 
-Repository: https://github.com/mattermost/desktop
+Repository: https://github.com/okrbest/okrbest-desktop
 
 ## Architecture
 
@@ -15,7 +15,7 @@ Repository: https://github.com/mattermost/desktop
   - `src/app/` — High-level app modules: windows, tabs, modals, menus, and Calls integration.
   - `src/common/` — Shared modules: configuration, server/view management, logging, IPC constants, utilities.
 - **Renderer processes** (`src/renderer/`): Chromium instances for the app's internal UI (top bar, settings, modals). React-based.
-- **External views**: Each Mattermost server runs in its own `WebContentsView`, loading the web app directly from that server.
+- **External views**: Each server runs in its own `WebContentsView`, loading the web app directly from that server.
 - **Preload scripts** (`src/app/preload/`): Bridge between main and renderer via `contextBridge`:
   - `internalAPI.js` → `window.desktop` (full API for trusted internal views)
   - `externalAPI.ts` → `window.desktopAPI` (restricted API for external server views)
@@ -101,7 +101,7 @@ The base config provides Babel transpilation, path alias resolution, and `Define
 
 #### Renderer entry points
 
-Each UI surface (modal, dropdown, screen) needs an entry in `webpack.config.renderer.js` and a matching `HtmlWebpackPlugin` instance. To add a new one: create the React entry point in `src/renderer/`, add both to the webpack config, then load it from the main process via `mattermost-desktop://renderer/myPage.html`.
+Each UI surface (modal, dropdown, screen) needs an entry in `webpack.config.renderer.js` and a matching `HtmlWebpackPlugin` instance. To add a new one: create the React entry point in `src/renderer/`, add both to the webpack config, then load it from the main process via `mattermost-desktop://renderer/myPage.html` (internal protocol).
 
 ### electron-builder
 
@@ -149,6 +149,7 @@ Every source file must start with:
 
 ```
 // Copyright (c) 2016-present Mattermost, Inc. All Rights Reserved.
+// Copyright (c) 2024-present OKR Best. All Rights Reserved.
 // See LICENSE.txt for license information.
 ```
 

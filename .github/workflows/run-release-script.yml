@@ -43,7 +43,7 @@ jobs:
         with:
           ref: ${{ inputs.branch }}
           fetch-depth: 0
-          token: ${{ secrets.MATTERMOST_BUILD_GH_TOKEN }}
+          token: ${{ secrets.OKRBEST_DESKTOP_BUILD_GH_TOKEN }}
 
       - name: Configure Git
         run: |

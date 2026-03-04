@@ -8,11 +8,11 @@ Full API for trusted internal views (main window, settings, modals, dropdowns). 
 
 ## externalAPI.ts → `window.desktopAPI`
 
-Restricted API for external Mattermost server views. Covers session management, notifications/unreads, navigation, theme syncing, Calls integration, popout windows, and performance metrics. Also handles secure input toggling on macOS and periodic cache clearing.
+Restricted API for external server views. Covers session management, notifications/unreads, navigation, theme syncing, Calls integration, popout windows, and performance metrics. Also handles secure input toggling on macOS and periodic cache clearing.
 
 ## Desktop API types (`api-types/`)
 
-The `api-types/` directory at repo root contains `@mattermost/desktop-api` — a standalone TypeScript types package defining the `DesktopAPI` interface. This is the contract between the Mattermost Web App and `externalAPI.ts`. It has its own `package.json`.
+The `api-types/` directory at repo root contains `@mattermost/desktop-api` — a standalone TypeScript types package defining the `DesktopAPI` interface. This is the contract between the web app and `externalAPI.ts`. It has its own `package.json`.
 
 ## Adding a new IPC method
 

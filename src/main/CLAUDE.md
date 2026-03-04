@@ -44,5 +44,5 @@ Window bounds helpers (`getWindowBoundaries`, `getAdjustedWindowBoundaries`), pr
 
 ## Server info (`server/`)
 
-- `serverInfo.ts` — Fetches server metadata (version, features) from a Mattermost server URL.
+- `serverInfo.ts` — Fetches server metadata (version, features) from a server URL.
 - `serverAPI.ts` — API client for server-side REST endpoints used by the desktop app.

@@ -240,7 +240,7 @@ jobs:
 
       - name: release/publish-release
         env:
-          GITHUB_TOKEN: ${{ secrets.MATTERMOST_BUILD_GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.OKRBEST_DESKTOP_BUILD_GH_TOKEN }}
         run: |
           VERSION=$(jq -r .version package.json)
           ./scripts/generate_release_markdown.sh ${VERSION} > release-notes.md

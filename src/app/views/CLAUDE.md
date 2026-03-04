@@ -15,7 +15,7 @@ Other views include `LoadingScreen`, `ServerDropdownView`, `DownloadsDropdownVie
 - **`WebContentsManager`** (`webContentsManager.ts`): Creates, destroys, and coordinates `MattermostWebContentsView` instances. Owns the lifecycle of the Electron `WebContentsView` objects.
 - **`TabManager`** (`tabs/tabManager.ts`): Manages the tab bar — active tab per server, switching, creation, removal, ordering. Coordinates with `WebContentsManager` to show/hide the corresponding views.
 - **`WebContentsEventManager`** (`webContentEvents.ts`): Core security boundary. Attaches navigation guards to every `webContents` instance to control where content can navigate.
-- **`PluginsPopUpsManager`** (`pluginsPopUps.ts`): Manages popup windows from Mattermost plugins. Restricts navigation to the originating server's domain.
+- **`PluginsPopUpsManager`** (`pluginsPopUps.ts`): Manages popup windows from server plugins. Restricts navigation to the originating server's domain.
 - **`ModalManager`** (`mainWindow/modals/`): Queue-based modal system. Shows one modal at a time as a `WebContentsView` layered on the main window.
 
 ## Overlay views on the main window
