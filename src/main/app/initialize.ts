@@ -111,7 +111,7 @@ import {
 } from './utils';
 import {handleDoubleClick, handleGetDarkMode} from './windows';
 
-import {protocols} from '../../../electron-builder.json';
+import {protocols} from '../../../electron-builder';
 
 export const mainProtocol = protocols?.[0]?.schemes?.[0];
 

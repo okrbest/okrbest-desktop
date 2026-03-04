@@ -10,7 +10,9 @@ import * as Validator from 'common/Validator';
 
 import type {Args} from 'types/args';
 
-import {protocols} from '../../electron-builder.json';
+import {protocols} from '../../electron-builder';
+
+const registeredSchemes = (protocols?.[0]?.schemes ?? []).map((scheme: string) => `${scheme.toLowerCase()}:`);
 
 export default function parse(args: string[]) {
     return validateArgs(parseArgs(triageArgs(args)));
@@ -18,12 +20,12 @@ export default function parse(args: string[]) {
 
 function triageArgs(args: string[]) {
     // ensure any args following a possible deeplink are discarded
-    if (protocols && protocols[0] && protocols[0].schemes && protocols[0].schemes[0]) {
-        const scheme = protocols[0].schemes[0].toLowerCase();
-        const deeplinkIndex = args.findIndex((arg) => arg.toLowerCase().includes(`${scheme}:`));
-        if (deeplinkIndex !== -1) {
-            return args.slice(0, deeplinkIndex + 1);
-        }
+    const deeplinkIndex = args.findIndex((arg) => {
+        const argLower = arg.toLowerCase();
+        return registeredSchemes.some((scheme) => argLower.includes(scheme));
+    });
+    if (deeplinkIndex !== -1) {
+        return args.slice(0, deeplinkIndex + 1);
     }
     return args;
 }

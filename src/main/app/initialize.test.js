@@ -104,15 +104,15 @@ jest.mock('electron-devtools-installer', () => {
 const isDev = false;
 jest.mock('electron-is-dev', () => isDev);
 
-jest.mock('../../../electron-builder.json', () => ([
-    {
+jest.mock('../../../electron-builder', () => ({
+    protocols: [{
         name: 'OKR Best',
         schemes: [
             'okrbest',
             'mattermost',
         ],
-    },
-]));
+    }],
+}));
 
 jest.mock('app/serverHub', () => ({
     init: jest.fn(),
@@ -121,6 +121,7 @@ jest.mock('common/config', () => ({
     once: jest.fn(),
     on: jest.fn(),
     init: jest.fn(),
+    initRegistry: jest.fn(),
 }));
 
 jest.mock('main/security/allowProtocolDialog', () => ({

@@ -73,9 +73,10 @@
       }
     },
     {
-      "files": ["scripts/**/*", "babel.config.js", "webpack.config.*.js"],
+      "files": ["scripts/**/*", "electron-builder.ts", "babel.config.js", "webpack.config.*.js"],
       "rules": {
-        "import/no-commonjs": 0
+        "import/no-commonjs": 0,
+        "no-template-curly-in-string": 0
       }
     },
     {

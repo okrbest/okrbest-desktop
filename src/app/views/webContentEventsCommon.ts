@@ -10,7 +10,7 @@ import type {Logger} from 'common/log';
 import {getLevel} from 'common/log';
 import {parseURL} from 'common/utils/url';
 
-import {protocols} from '../../../electron-builder.json';
+import {protocols} from '../../../electron-builder';
 
 export const generateHandleConsoleMessage = (log: Logger) => (event: Event<WebContentsConsoleMessageEventParams>) => {
     const wcLog = log.withPrefix('renderer');
@@ -41,7 +41,7 @@ function sanitizeMessage(sourceURL: string, message: string) {
     return message.replace(parsedURL.host, '<host>');
 }
 
-// Get all registered protocol schemes from electron-builder.json
+// Get all registered protocol schemes from electron-builder config.
 const registeredSchemes = protocols?.[0]?.schemes ?? [];
 
 export function isCustomProtocol(url: URL) {

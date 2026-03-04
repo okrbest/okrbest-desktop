@@ -22,11 +22,10 @@ import {ServerInfo} from 'main/server/serverInfo';
 import type {RemoteInfo} from 'types/server';
 import type {Boundaries} from 'types/utils';
 
-import {protocols} from '../../../electron-builder.json';
-
+import {protocols} from '../../../electron-builder';
 const log = new Logger('App.Utils');
 
-// Get all registered protocol schemes from electron-builder.json
+// Get all registered protocol schemes from electron-builder config.
 const registeredSchemes = protocols?.[0]?.schemes ?? [];
 
 export function openDeepLink(deeplinkingUrl: string) {
