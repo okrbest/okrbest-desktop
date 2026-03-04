@@ -11,6 +11,7 @@
 | 워크플로우 | 트리거 | 목적 |
 |-----------|--------|------|
 | `release.yaml` | Git 태그 `v*.*.*` | 프로덕션 릴리스 배포 |
+| `run-release-script.yml` | 수동 (workflow_dispatch) | release.sh 실행 (태그 생성, 버전 bump) |
 | `ci.yaml` | Pull Request | PR 검증 (빌드 + 테스트) |
 | `build-for-pr.yml` | PR 라벨 `Build Apps for PR` | PR용 빌드 아티팩트 생성 |
 | `nightly-builds.yaml` | 스케줄/수동 | 나이틀리 빌드 |
@@ -195,7 +196,7 @@ Certum SimplySign 서명 단계 설정됨:
 
 | Secret (변경 후 이름) | 용도 |
 |----------------------|------|
-| `OKRBEST_BUILD_GH_TOKEN` | GitHub Personal Access Token (`repo` 권한) |
+| `OKRBEST_DESKTOP_BUILD_GH_TOKEN` | GitHub Personal Access Token (`repo` 권한) - release.yaml, run-release-script.yml |
 | `OKRBEST_DESKTOP_RELEASE_WEBHOOK_URL` | 릴리스 알림 웹훅 URL |
 | `OKRBEST_DESKTOP_NIGHTLY_WEBHOOK_URL` | 나이틀리 알림 웹훅 URL |
 
@@ -384,6 +385,7 @@ gh release create v1.0.0 release/**/* --title "v1.0.0" --draft
 ```
 워크플로우:
 ├── .github/workflows/release.yaml
+├── .github/workflows/run-release-script.yml
 ├── .github/workflows/ci.yaml
 ├── .github/workflows/build-for-pr.yml
 ├── .github/workflows/nightly-builds.yaml
