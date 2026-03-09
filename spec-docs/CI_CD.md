@@ -1,6 +1,6 @@
 # OKR Best Desktop CI/CD 가이드
 
-> GitHub Actions 기반 CI/CD 파이프라인 구성, 배포 프로세스, 인프라 설정 가이드
+> GitHub Actions 기반 CI/CD 파이프라인, 배포 환경 설정, 운영 체크리스트
 
 ---
 
@@ -10,228 +10,226 @@
 
 | 워크플로우 | 트리거 | 목적 |
 |-----------|--------|------|
-| `release.yaml` | Git 태그 `v*.*.*` | 프로덕션 릴리스 배포 |
-| `run-release-script.yml` | 수동 (workflow_dispatch) | release.sh 실행 (태그 생성, 버전 bump) |
-| `ci.yaml` | Pull Request | PR 검증 (빌드 + 테스트) |
-| `build-for-pr.yml` | PR 라벨 `Build Apps for PR` | PR용 빌드 아티팩트 생성 |
-| `nightly-builds.yaml` | 스케줄/수동 | 나이틀리 빌드 |
-| `release-mas.yaml` | Git 태그 `v*.*.*-mas.*` | Mac App Store 배포 |
-| `nightly-main.yml` | 스케줄 | 주간 나이틀리 빌드 + S3 배포 |
-| `nightly-rainforest.yml` | 수동 | Rainforest 테스트용 빌드 |
-| `e2e-functional.yml` | PR/수동 | E2E 기능 테스트 |
-| `e2e-functional-template.yml` | 재사용 | E2E 테스트 템플릿 |
+| `release.yaml` | Git 태그 `v*.*.*`, `v*.*.*-rc.*` | 정식 릴리스/RC 빌드, S3 업로드, GitHub Release 드래프트 생성 |
+| `release-mas.yaml` | Git 태그 `v*.*.*-rc.*`, `v*.*.*-mas.*` | Mac App Store용 패키징 및 `fastlane publish_test` 실행 |
+| `run-release-script.yml` | 수동 (`workflow_dispatch`) | `scripts/release.sh` 실행, 태그/버전 자동화 |
+| `ci.yaml` | Pull Request | PR 검증용 빌드 + 테스트 |
+| `build-for-pr.yml` | PR 라벨 `Build Apps for PR` | PR용 배포 아티팩트 생성 |
+| `nightly-builds.yaml` | 스케줄/수동 | 나이틀리 태그 생성 후 `nightly-main.yml`, `nightly-rainforest.yml` 호출 |
+| `nightly-main.yml` | 재사용(`workflow_call`)/수동 | 나이틀리 메인 빌드, 릴리스 버킷 업로드, 링크 생성 |
+| `nightly-rainforest.yml` | 재사용(`workflow_call`)/수동 | Rainforest 테스트용 빌드, 일일 빌드 버킷 업로드 |
+| `e2e-functional.yml` | 수동 (`workflow_dispatch`) | 수동 매트릭스 E2E 실행 |
+| `e2e-functional-template.yml` | 재사용(`workflow_call`)/수동 | E2E 실행 템플릿 |
+| `compatibility-matrix-testing.yml` | 수동 (`workflow_dispatch`) | 서버/OS 조합별 호환성 매트릭스 테스트 |
 
 ### 1.2 빌드 플랫폼
 
-- **Linux**: Ubuntu 22.04 (x64, arm64)
-- **Windows**: Windows 2022 (x64, arm64)
-- **macOS**: macOS 15 (x64, arm64, universal)
+- Linux: `ubuntu-22.04` (x64, arm64)
+- Windows: `windows-2022` (x64, arm64)
+- macOS: `macos-15` (x64, arm64, universal)
 
 ### 1.3 릴리스 배포 흐름
 
+```text
+태그 푸시 (v1.0.0 또는 v1.0.0-rc.1)
+    ↓
+begin-notification
+    ↓
+병렬 빌드
+  - build-linux         (deb, rpm, flatpak, tar.gz, AppImage)
+  - build-msi-installer (zip, msi + 선택적 Certum 서명)
+  - build-mac-installer (zip, dmg x64/arm64/universal + 서명/공증)
+    ↓
+upload-to-s3
+  - OIDC AssumeRole: OKRBEST_DESKTOP_RELEASE_AWS_ROLE_TO_ASSUME
+  - Bucket Secret: OKRBEST_DESKTOP_RELEASE_BUCKET
+    ↓
+github-release
+  - GitHub Release draft 생성
+    ↓
+end-notification
 ```
-태그 푸시 (v1.0.0)
+
+### 1.4 Mac App Store 배포 흐름
+
+```text
+태그 푸시 (v1.0.0-rc.1 또는 v1.0.0-mas.1)
     ↓
-begin-notification (알림)
-    ↓
-┌────────────────────────────────┐
-│         병렬 빌드               │
-│  build-linux    (deb, rpm, tar.gz, AppImage)
-│  build-windows  (NSIS, MSI, ZIP + 코드 서명)
-│  build-macos    (DMG x64, arm64, universal + 서명/공증)
-└────────────────────────────────┘
-    ↓
-upload-to-s3 (S3 업로드)
-    ↓
-github-release (GitHub Releases 드래프트 생성)
-    ↓
-end-notification (완료 알림)
+mac-app-store-preflight
+  - MAS 프로비저닝 프로파일 복원
+  - package:mas 실행
+  - fastlane publish_test 실행
 ```
 
 ---
 
-## 2. 릴리스 배포 절차
+## 2. 릴리스 운영 절차
 
-### 2.1 버전 업데이트 및 태그 생성
+### 2.1 태그 규칙
+
+- 정식 릴리스: `v1.0.0` -> `release.yaml`
+- RC 릴리스: `v1.0.0-rc.1` -> `release.yaml` + `release-mas.yaml`
+- MAS 전용 릴리스: `v1.0.0-mas.1` -> `release-mas.yaml`
+
+### 2.2 수동 릴리스 절차
 
 ```bash
-# 1. package.json 버전 수정
-# 2. 커밋 및 푸시
+# 1. package.json / package-lock.json 버전 갱신
 git add package.json package-lock.json
 git commit -m "Bump version to 1.0.0"
 git push origin main
 
-# 3. 태그 생성 및 푸시 → 자동으로 release.yaml 실행
+# 2. 태그 푸시
 git tag -a v1.0.0 -m "Release v1.0.0"
 git push origin v1.0.0
 ```
 
-**태그 형식:**
-- 정식 릴리스: `v1.0.0`
-- RC: `v1.0.0-rc.1`
-- Mac App Store: `v1.0.0-mas.1`
+### 2.3 release.sh 기반 자동화 절차
 
-### 2.2 배포 확인
+`run-release-script.yml`은 `release-X.Y` 브랜치에서만 실행됩니다.
 
-1. GitHub Actions 탭에서 워크플로우 실행 확인 (약 20-30분)
-2. Releases 탭에서 드래프트 릴리스 확인
-3. 릴리스 노트 검토 후 "Publish release" 클릭
+필수 설정:
+- Secret: `OKRBEST_DESKTOP_BUILD_GH_TOKEN`
+- Variable: `UNIFIED_CI_USERNAME`
+- Variable: `UNIFIED_CI_EMAIL`
 
-### 2.3 배포 후 확인
+지원 입력값:
+- `start`
+- `rc`
+- `pre-final`
+- `final`
+- `patch`
 
-- [ ] 각 플랫폼 다운로드 링크 테스트
-- [ ] 설치 및 실행 확인
-- [ ] 자동 업데이트 감지 확인 (설정된 경우)
+### 2.4 배포 확인
+
+1. GitHub Actions에서 대상 워크플로우가 정상 완료됐는지 확인
+2. GitHub Releases의 드래프트 릴리스 확인
+3. S3 업로드 경로와 `latest*.yml` 또는 채널 포인터 파일(`latest.txt`, `rc.txt`, `nightly.txt` 등) 확인
+4. 플랫폼별 다운로드 및 실행 확인
 
 ---
 
-## 3. GitHub Secrets 설정
+## 3. GitHub Actions 설정
 
-**위치**: GitHub 저장소 → Settings → Secrets and variables → Actions
+**위치**: GitHub 저장소 -> Settings -> Secrets and variables -> Actions
 
-### 3.1 Windows 코드 서명 (Certum SimplySign)
+### 3.1 Windows 코드 서명
 
-**인증서 상태**: Certum Standard Code Signing in the Cloud (365일) - ✅ 활성화 완료  
-**조직**: OKRBEST Inc. (경기도 안양시, KR)  
-**유효 기간**: 2026-02-14 ~ 2027-02-14  
-**Serial**: `0e20f726ad841afdc64745642c4327b9`
+`electron-builder.json`의 `"sign": false`는 유지합니다. Windows 서명은 빌드 후 `scripts/certum-sign.ps1`에서 별도 수행됩니다.
 
-`electron-builder.json`의 `"sign": false`는 유지합니다. 클라우드 서명은 빌드 후 `scripts/certum-sign.ps1`에서 별도 실행됩니다.
-
-> **상세 가이드**: [spec-docs/Certum-SimplySign.md](Certum-SimplySign.md) (Certum 공식 문서 기준)
-
-#### Runner 및 서명 방식
-
-| 방식 | 현재 사용 | 설명 |
-|------|----------|------|
-| **GitHub Hosted** (windows-2022) | ✅ | TOTP 자동화(certum-sign.ps1)로 매 빌드마다 SimplySign 설치·로그인 후 서명 |
-| **Self-hosted Windows Runner** | - | 로그인 세션 유지 중일 때 TOTP 없이 서명 (세션 만료 시 재인증). 실무 Best Practice |
-
-#### 초보자 빠른 시작 (GitHub Hosted)
-
-1. Certum 인증서 활성화 + SimplySign Mobile 활성화 완료
-2. 활성화 QR 코드를 1Password로 스캔해서 `otpauth://...` URI 확보
-3. GitHub Secrets 등록
-   - `CERTUM_OTP_URI`: `otpauth://totp/...` 전체 URI
-   - `CERTUM_USERID`: SimplySign 계정 이메일
-4. Windows 빌드 워크플로우 실행 (`release.yaml` 또는 PR 빌드)
-5. Actions 로그에서 아래 문구 확인
-   - `TOTP code generated.`
-   - `Using signtool:`
-   - `Successfully signed:`
-6. 빌드 아티팩트 다운로드 후 서명 검증
-
-```powershell
-signtool verify /pa path\to\okrbest-desktop.exe
-signtool verify /pa path\to\okrbest-desktop.msi
-```
-
-#### 필요한 GitHub Secrets (2개)
+필수 Secrets:
 
 | Secret | 용도 |
 |--------|------|
-| `CERTUM_OTP_URI` | `otpauth://totp/...?secret=...&period=30` 전체 URI (1Password로 QR 스캔 후 추출) |
+| `CERTUM_OTP_URI` | SimplySign OTP용 `otpauth://...` 전체 URI |
 | `CERTUM_USERID` | SimplySign 계정 이메일 |
 
-조건: `if: ${{ secrets.CERTUM_OTP_URI != '' && secrets.CERTUM_USERID != '' }}`로 두 Secret이 모두 있을 때만 서명 단계 활성화.
+사용 워크플로우:
+- `release.yaml`
+- `build-for-pr.yml`
+- `nightly-main.yml`
+- `nightly-rainforest.yml`
 
-#### 워크플로우 (적용 완료)
-
-`release.yaml`, `build-for-pr.yml`, `nightly-main.yml`, `nightly-rainforest.yml`:
+서명 단계 조건:
 
 ```yaml
-- name: release/sign-windows-exe
-  if: ${{ secrets.CERTUM_OTP_URI != '' && secrets.CERTUM_USERID != '' }}
-  shell: powershell
-  env:
-    CERTUM_OTP_URI: ${{ secrets.CERTUM_OTP_URI }}
-    CERTUM_USERID: ${{ secrets.CERTUM_USERID }}
-  run: pwsh -ExecutionPolicy Bypass -File ./scripts/certum-sign.ps1 -FilePath "release/win*-unpacked/*.exe"
+if: ${{ secrets.CERTUM_OTP_URI != '' && secrets.CERTUM_USERID != '' }}
 ```
 
-#### 첫 실행 성공 판정 (초보자용)
+### 3.2 macOS Developer ID 서명
 
-아래 3가지를 모두 만족하면 정상입니다.
+| Secret | 용도 |
+|--------|------|
+| `OKRBEST_DESKTOP_MAC_INSTALLER_CSC_KEY_PASSWORD` | Developer ID 인증서 비밀번호 |
+| `OKRBEST_DESKTOP_MAC_INSTALLER_CSC_LINK` | Developer ID 인증서 경로 또는 링크 |
+| `OKRBEST_DESKTOP_MAC_INSTALLER_DMG_PROFILE` | DMG용 프로비저닝 프로파일(Base64) |
 
-1. Actions 로그에 `Successfully signed:`가 `.exe`, `.msi` 각각 출력됨
-2. `Failing code signing step` 또는 `No files found matching pattern` 오류가 없음
-3. 아티팩트에 대해 `signtool verify /pa` 검증 성공
+사용 워크플로우:
+- `release.yaml`
+- `build-for-pr.yml`
+- `nightly-main.yml`
+- `nightly-rainforest.yml`
 
-#### 서명 없이 배포 시 영향
+### 3.3 macOS App Store Connect / MAS
 
-| 항목 | 영향 |
-|------|------|
-| SmartScreen | "Windows가 PC를 보호했습니다" 경고 |
-| 사용자 경험 | "추가 정보" → "실행" 클릭 필요 |
-| 기업 환경 | IT 정책으로 설치 차단 가능 |
+| Secret | 용도 |
+|--------|------|
+| `OKRBEST_DESKTOP_MAC_APP_STORE_MACOS_API_KEY_ID` | App Store Connect API Key ID |
+| `OKRBEST_DESKTOP_MAC_APP_STORE_MACOS_API_KEY` | App Store Connect API Key 내용 |
+| `OKRBEST_DESKTOP_MAC_APP_STORE_MACOS_API_ISSUER_ID` | App Store Connect Issuer ID |
+| `OKRBEST_DESKTOP_MAC_APP_STORE_MAS_PROFILE` | MAS 프로비저닝 프로파일(Base64) |
+| `OKRBEST_DESKTOP_MAC_APP_STORE_CSC_KEY_PASSWORD` | MAS 인증서 비밀번호 |
+| `OKRBEST_DESKTOP_MAC_APP_STORE_CSC_LINK` | MAS 인증서 경로 또는 링크 |
 
-### 3.2 macOS Developer ID 코드 서명
+사용 워크플로우:
+- `release.yaml`
+- `release-mas.yaml`
+- `build-for-pr.yml`
+- `nightly-main.yml`
+- `nightly-rainforest.yml`
 
-| Secret (변경 후 이름) | 용도 | 사용 파일 |
-|----------------------|------|----------|
-| `OKRBEST_DESKTOP_MAC_INSTALLER_CSC_KEY_PASSWORD` | 인증서 비밀번호 | 4개 |
-| `OKRBEST_DESKTOP_MAC_INSTALLER_CSC_LINK` | 인증서 파일 경로 | 4개 |
-| `OKRBEST_DESKTOP_MAC_INSTALLER_DMG_PROFILE` | 프로비저닝 프로파일 (Base64) | 4개 |
+### 3.4 AWS 배포
 
-### 3.3 macOS App Store Connect
+#### 릴리스/RC/나이틀리 메인 업로드
 
-| Secret (변경 후 이름) | 용도 | 사용 파일 |
-|----------------------|------|----------|
-| `OKRBEST_DESKTOP_MAC_APP_STORE_MACOS_API_KEY_ID` | Apple API 키 ID | 5개 |
-| `OKRBEST_DESKTOP_MAC_APP_STORE_MACOS_API_KEY` | Apple API 키 (Base64) | 5개 |
-| `OKRBEST_DESKTOP_MAC_APP_STORE_MACOS_API_ISSUER_ID` | Apple API Issuer ID | 5개 |
-| `OKRBEST_DESKTOP_MAC_APP_STORE_MAS_PROFILE` | MAS 프로비저닝 프로파일 | 2개 |
-| `OKRBEST_DESKTOP_MAC_APP_STORE_CSC_KEY_PASSWORD` | MAS 인증서 비밀번호 | 2개 |
-| `OKRBEST_DESKTOP_MAC_APP_STORE_CSC_LINK` | MAS 인증서 경로 | 2개 |
+`release.yaml`과 `nightly-main.yml`은 AWS Access Key가 아니라 OIDC AssumeRole을 사용합니다.
 
-### 3.4 AWS S3 배포
+| Secret | 용도 |
+|--------|------|
+| `OKRBEST_DESKTOP_RELEASE_AWS_ROLE_TO_ASSUME` | 업로드용 IAM Role ARN |
+| `OKRBEST_DESKTOP_RELEASE_BUCKET` | 릴리스 버킷 이름. 권장값: `releases.okrbest.com` |
 
-| Secret (변경 후 이름) | 용도 |
-|----------------------|------|
-| `OKRBEST_DESKTOP_RELEASE_AWS_ACCESS_KEY_ID` | 릴리스 S3 Access Key |
-| `OKRBEST_DESKTOP_RELEASE_AWS_SECRET_ACCESS_KEY` | 릴리스 S3 Secret Key |
-| `OKRBEST_DESKTOP_DAILY_AWS_ACCESS_KEY_ID` | 일일 빌드 S3 Access Key |
-| `OKRBEST_DESKTOP_DAILY_AWS_SECRET_ACCESS_KEY` | 일일 빌드 S3 Secret Key |
+#### Rainforest 일일 빌드 업로드
+
+`nightly-rainforest.yml`은 정적 Access Key를 사용합니다.
+
+| Secret | 용도 |
+|--------|------|
+| `OKRBEST_DESKTOP_DAILY_AWS_ACCESS_KEY_ID` | 일일 빌드 업로드용 Access Key |
+| `OKRBEST_DESKTOP_DAILY_AWS_SECRET_ACCESS_KEY` | 일일 빌드 업로드용 Secret Key |
 
 ### 3.5 E2E 테스트
 
-| Secret (변경 후 이름) | 용도 |
-|----------------------|------|
-| `OKRBEST_DESKTOP_E2E_USER_NAME` | E2E 테스트 사용자명 |
-| `OKRBEST_DESKTOP_E2E_USER_CREDENTIALS` | E2E 테스트 인증 |
-| `OKRBEST_DESKTOP_E2E_AWS_ACCESS_KEY_ID` | E2E 리포트 S3 Key |
-| `OKRBEST_DESKTOP_E2E_AWS_SECRET_ACCESS_KEY` | E2E 리포트 S3 Secret |
-| `OKRBEST_DESKTOP_E2E_WEBHOOK_URL` | E2E 결과 알림 |
-| `OKRBEST_DESKTOP_E2E_ZEPHYR_API_KEY` | Zephyr 연동 |
-| `OKRBEST_DESKTOP_E2E_TEST_CYCLE_LINK_PREFIX` | 테스트 사이클 링크 |
+| Secret | 용도 |
+|--------|------|
+| `OKRBEST_DESKTOP_E2E_USER_NAME` | 기본 E2E 테스트 계정명 |
+| `OKRBEST_DESKTOP_E2E_USER_CREDENTIALS` | 기본 E2E 테스트 비밀번호 |
+| `OKRBEST_DESKTOP_E2E_AWS_ACCESS_KEY_ID` | E2E 리포트 업로드용 Access Key |
+| `OKRBEST_DESKTOP_E2E_AWS_SECRET_ACCESS_KEY` | E2E 리포트 업로드용 Secret Key |
+| `OKRBEST_DESKTOP_E2E_WEBHOOK_URL` | E2E 결과 알림 웹훅 |
+| `OKRBEST_DESKTOP_E2E_ZEPHYR_API_KEY` | Zephyr 연동 API Key |
+| `OKRBEST_DESKTOP_E2E_TEST_CYCLE_LINK_PREFIX` | 테스트 사이클 링크 Prefix |
 
-### 3.6 기타
+고정 환경값:
+- E2E 리포트 버킷: `okrbest-cypress-report`
 
-| Secret (변경 후 이름) | 용도 |
-|----------------------|------|
-| `OKRBEST_DESKTOP_BUILD_GH_TOKEN` | GitHub Personal Access Token (`repo` 권한) - release.yaml, run-release-script.yml |
-| `OKRBEST_DESKTOP_RELEASE_WEBHOOK_URL` | 릴리스 알림 웹훅 URL |
-| `OKRBEST_DESKTOP_NIGHTLY_WEBHOOK_URL` | 나이틀리 알림 웹훅 URL |
+### 3.6 기타 Secrets / Variables
+
+| 이름 | 종류 | 용도 |
+|------|------|------|
+| `OKRBEST_DESKTOP_BUILD_GH_TOKEN` | Secret | GitHub Release 생성 및 `run-release-script.yml` checkout token |
+| `OKRBEST_DESKTOP_RELEASE_WEBHOOK_URL` | Secret | 릴리스 시작/완료 알림 |
+| `OKRBEST_DESKTOP_NIGHTLY_WEBHOOK_URL` | Secret | 나이틀리 링크 공유 알림 |
+| `UNIFIED_CI_USERNAME` | Variable | `run-release-script.yml` Git 사용자명 |
+| `UNIFIED_CI_EMAIL` | Variable | `run-release-script.yml` Git 이메일 |
 
 ---
 
 ## 4. 인프라 설정
 
-### 4.1 AWS S3 버킷
+### 4.1 S3 버킷
 
-| 버킷 | 용도 | 변경 전 |
-|------|------|---------|
-| `releases.okrbest.com` | 릴리스 배포 | `releases.mattermost.com` |
-| `okrbest-desktop-daily-builds` | 일일 빌드 | `mattermost-desktop-daily-builds` |
-| `okrbest-cypress-report` | E2E 리포트 | `mattermost-cypress-report` |
+| 버킷 | 현재 사용 방식 |
+|------|---------------|
+| `releases.okrbest.com` | 릴리스/RC/나이틀리 메인 업로드 대상. 실제 워크플로우에서는 `OKRBEST_DESKTOP_RELEASE_BUCKET` 값으로 참조 |
+| `okrbest-desktop-daily-builds` | Rainforest 일일 빌드 업로드 대상. `nightly-rainforest.yml`에 하드코딩 |
+| `okrbest-cypress-report` | E2E 리포트 업로드 대상. `e2e-functional-template.yml` 환경변수로 고정 |
 
-**릴리스 버킷 설정:**
+### 4.2 릴리스 버킷 권장 설정
 
 ```bash
-# 버킷 생성
 aws s3 mb s3://releases.okrbest.com
 
-# 퍼블릭 읽기 정책
 aws s3api put-bucket-policy --bucket releases.okrbest.com --policy '{
   "Version": "2012-10-17",
   "Statement": [{
@@ -244,7 +242,8 @@ aws s3api put-bucket-policy --bucket releases.okrbest.com --policy '{
 }'
 ```
 
-**CORS 설정:**
+CORS 예시:
+
 ```json
 [{
   "AllowedHeaders": ["*"],
@@ -254,169 +253,142 @@ aws s3api put-bucket-policy --bucket releases.okrbest.com --policy '{
 }]
 ```
 
-### 4.2 업데이트 서버 파일 구조
+### 4.3 릴리스 버킷 업로드 구조
 
-```
+`cp_artifacts.sh`와 릴리스 워크플로우 기준으로 버전 디렉터리와 updater 메타데이터가 함께 업로드됩니다.
+
+```text
 releases.okrbest.com/desktop/
-├── latest.yml              # Windows 최신 버전 정보
-├── latest-mac.yml          # macOS 최신 버전 정보
-├── latest-linux.yml        # Linux 최신 버전 정보
+├── latest.yml
+├── latest-mac.yml
+├── latest-linux.yml
+├── latest.txt
+├── <channel>.txt           # prerelease일 때 생성. 예: rc.txt, nightly.txt
 └── {version}/
     ├── okrbest-desktop-{version}-win-x64.msi
+    ├── okrbest-desktop-{version}-win-arm64.msi
+    ├── okrbest-desktop-{version}-win-x64.zip
+    ├── okrbest-desktop-{version}-win-arm64.zip
     ├── okrbest-desktop-{version}-mac-universal.dmg
+    ├── okrbest-desktop-{version}-mac-x64.dmg
+    ├── okrbest-desktop-{version}-mac-arm64.dmg
     ├── okrbest-desktop-{version}-linux-x64.tar.gz
+    ├── okrbest-desktop-{version}-linux-arm64.tar.gz
     └── ...
 ```
 
-### 4.3 비용 예상
+### 4.4 Windows 산출물 기준
 
-| 항목 | 비용 |
-|------|------|
-| AWS S3 (월) | ~$5-20 |
-| Windows 코드 서명 - Certum Standard (년) | €209 (~$230) ✅ 구매 완료 |
-| Apple Developer Program (년) | $99 |
-| **합계 (연간)** | **~$390-570** |
+현재 Windows 릴리스 산출물은 아래 두 계열입니다.
 
-### 4.4 임시 대안 (인프라 준비 전)
+- `zip`
+- `msi`
 
-인프라 없이 로컬 빌드 후 수동 배포:
-
-```bash
-# 로컬 빌드
-npm run package:linux
-npm run package:mac
-
-# GitHub Release 수동 생성
-gh release create v1.0.0 release/**/* --title "v1.0.0" --draft
-```
+문서상 NSIS는 현재 구현 기준에 포함되지 않습니다.
 
 ---
 
-## 5. 리브랜딩 남은 작업
+## 5. 현재 리브랜딩 상태
 
-### 5.1 워크플로우 환경변수 이름 변경
+### 5.1 배포 환경 기준으로 반영 완료된 항목
 
-모든 `MM_*` 환경변수를 `OKRBEST_*`로 변경 필요.
+- 주요 워크플로우의 Secret/환경변수는 `OKRBEST_*` 명명으로 전환됨
+- Windows 서명용 `CERTUM_*` 시크릿 조건부 사용 적용됨
+- 릴리스/나이틀리 알림 액션은 `okrbest/action-okrbest-notify@master` 사용
+- E2E 템플릿 입력/환경변수는 `OKRBEST_TEST_*`, `OKRBEST_SERVER_VERSION` 기준으로 통일됨
+- `webpack.config.base.js`는 `OKRBEST_DESKTOP_BUILD_SKIPONBOARDINGSCREENS`, `OKRBEST_DESKTOP_BUILD_DISABLEGPU`, `OKRBEST_DESKTOP_BUILD_SENTRYDSN`를 사용
+- `e2e/modules/environment.js`는 `OKRBEST_TEST_SERVER_URL`, `OKRBEST_TEST_USER_NAME`, `OKRBEST_TEST_PASSWORD`를 사용
 
-**코드에서도 참조하는 변수 (코드+워크플로우 동시 수정 필요):**
+### 5.2 아직 남아 있는 배포 관련 잔여 항목
 
-| 현재 | 변경 후 | 코드 파일 |
-|------|---------|----------|
-| `MM_DESKTOP_BUILD_SKIPONBOARDINGSCREENS` | `OKRBEST_DESKTOP_BUILD_SKIPONBOARDINGSCREENS` | `webpack.config.base.js` (line 22) |
-| `MM_DESKTOP_BUILD_DISABLEGPU` | `OKRBEST_DESKTOP_BUILD_DISABLEGPU` | `webpack.config.base.js` (line 23) |
-| `MM_DESKTOP_BUILD_SENTRYDSN` | `OKRBEST_DESKTOP_BUILD_SENTRYDSN` | `webpack.config.base.js` (line 24) |
-| `MM_TEST_SERVER_URL` | `OKRBEST_TEST_SERVER_URL` | `e2e/modules/environment.js` (line 36) |
-| `MM_TEST_USER_NAME` | `OKRBEST_TEST_USER_NAME` | `e2e/modules/environment.js` (line 232) |
-| `MM_TEST_PASSWORD` | `OKRBEST_TEST_PASSWORD` | `e2e/modules/environment.js` (line 233) |
+아래 항목은 CI/CD 또는 배포 안내와 직접 연결된 리브랜딩 미완료 영역입니다.
 
-**워크플로우에서만 사용하는 변수:**
-
-| 현재 | 변경 후 |
-|------|---------|
-| `MM_WIN_INSTALLERS` | `OKRBEST_WIN_INSTALLERS` |
-| `MM_SERVER_VERSION` | `OKRBEST_SERVER_VERSION` |
-
-### ~~5.2 수정 필요한 워크플로우 파일~~ ✅ 완료
-
-모든 워크플로우의 `MM_*` Secret/환경변수가 `OKRBEST_*`로 변경됨:
-- `release.yaml` - Secrets, 환경변수, Webhook 알림 변경 완료
-- `build-for-pr.yml` - macOS Secrets 변경 완료
-- `nightly-main.yml` - Secrets, S3 URL, Webhook 변경 완료
-- `nightly-rainforest.yml` - Secrets, S3 URL 변경 완료
-- `release-mas.yaml` - macOS App Store Secrets 변경 완료
-- `e2e-functional-template.yml` - 이미 `OKRBEST_*` 적용됨
-
-### 5.3 스크립트 파일 수정
-
-| 파일 | 변경 내용 |
+| 파일 | 현재 상태 |
 |------|----------|
-| `scripts/generate_release_markdown.sh` | 다운로드 URL, 제품명, 파일명 패턴 |
-| `scripts/generate_release_post.sh` | GitHub 저장소 URL |
+| `nightly-rainforest.yml` | 파일명 치환 정규식에 `mattermost` 문자열이 남아 있음 |
+| `scripts/generate_release_post.sh` | GitHub 저장소 URL과 PR 링크가 Mattermost 기준으로 남아 있음 |
 
-### 5.4 외부 Actions 대체
+### 5.3 문서 운영 원칙
 
-| 원래 | 변경 후 | 상태 |
-|------|---------|------|
-| `mattermost/action-mattermost-notify` | `okrbest/action-okrbest-notify@master` | ✅ 완료 |
-| `mattermost/actions/delivery/update-commit-status` | `okrbest/actions/delivery/update-commit-status` | ✅ 완료 |
-| `mattermost/actions-workflows/.../snyk-sbom.yml` | `okrbest/actions-workflows/.../snyk-sbom.yml` | ✅ 완료 |
-
-대체 예시 (커밋 상태 업데이트):
-```yaml
-- name: Update commit status
-  uses: actions/github-script@v7
-  with:
-    script: |
-      await github.rest.repos.createCommitStatus({
-        owner: context.repo.owner,
-        repo: context.repo.repo,
-        sha: context.sha,
-        state: 'pending',
-        context: 'e2e/${{ matrix.platform }}',
-        description: 'E2E tests started...'
-      })
-```
-
-### 5.5 GitHub 설정 (.github 폴더)
-
-**완료됨:**
-- [x] 이슈/PR 템플릿 수정
-- [x] Dependabot 설정 수정
-- [x] Actions 저작권 헤더 추가
-- [x] 워크플로우 문구/URL 1차 수정
-
-**남은 작업 (인프라 준비 후):**
-- [ ] 워크플로우 S3 URL 변경
-- [ ] Webhook 설정 변경
-- [ ] GitHub Secrets 새 이름으로 등록
-- [ ] 기존 `MM_*` Secrets 삭제
+- 이 문서는 과거 TODO 기록이 아니라 현재 운영 기준서로 유지합니다.
+- 완료된 항목과 미완료 항목을 한 섹션에 섞지 않습니다.
+- 배포 환경과 무관한 일반 리브랜딩 잔여 작업은 별도 상태 문서에서 관리합니다.
 
 ---
 
-## 6. 트러블슈팅
+## 6. 운영 체크리스트
+
+### 6.1 신규 저장소 관리자 설정 체크리스트
+
+- [ ] `OKRBEST_DESKTOP_BUILD_GH_TOKEN` 등록
+- [ ] `UNIFIED_CI_USERNAME`, `UNIFIED_CI_EMAIL` Variables 등록
+- [ ] Windows 서명용 `CERTUM_OTP_URI`, `CERTUM_USERID` 등록
+- [ ] macOS Developer ID 서명용 `OKRBEST_DESKTOP_MAC_INSTALLER_*` 등록
+- [ ] App Store Connect / MAS용 `OKRBEST_DESKTOP_MAC_APP_STORE_*` 등록
+- [ ] 릴리스 업로드용 `OKRBEST_DESKTOP_RELEASE_AWS_ROLE_TO_ASSUME`, `OKRBEST_DESKTOP_RELEASE_BUCKET` 등록
+- [ ] Rainforest 업로드용 `OKRBEST_DESKTOP_DAILY_AWS_ACCESS_KEY_ID`, `OKRBEST_DESKTOP_DAILY_AWS_SECRET_ACCESS_KEY` 등록
+- [ ] E2E용 `OKRBEST_DESKTOP_E2E_*` Secrets 등록
+- [ ] `OKRBEST_DESKTOP_RELEASE_WEBHOOK_URL`, `OKRBEST_DESKTOP_NIGHTLY_WEBHOOK_URL` 등록
+
+### 6.2 배포 후 검증 체크리스트
+
+- [ ] GitHub Actions 전체 성공 확인
+- [ ] GitHub Release draft 생성 확인
+- [ ] S3 버킷 내 버전 디렉터리 및 메타데이터 파일 확인
+- [ ] Windows `zip`/`msi`, macOS `dmg`, Linux 패키지 다운로드 확인
+- [ ] 자동 업데이트 메타데이터(`latest*.yml`, `latest.txt` 또는 채널 포인터 파일) 확인
+
+---
+
+## 7. 트러블슈팅
 
 ### Windows 빌드 실패
-- **코드 서명 실패**: Secrets 확인, 인증서 유효기간 확인
-- **MSI 빌드 실패**: WiX Toolset 설치 확인
+
+- 코드 서명 실패: `CERTUM_OTP_URI`, `CERTUM_USERID` 존재 여부와 인증서 유효기간 확인
+- MSI 빌드 실패: WiX 관련 오류 로그 확인
 
 ### macOS 빌드 실패
-- **코드 서명 실패**: 인증서/프로비저닝 프로파일 확인, Apple Developer 계정 상태 확인
-- **공증 실패**: API 키 및 Issuer ID 확인
+
+- 코드 서명 실패: Developer ID 인증서와 프로비저닝 프로파일 확인
+- MAS 배포 실패: App Store Connect API Key, Issuer ID, MAS 프로파일 확인
 
 ### S3 업로드 실패
-- **권한 오류**: IAM 권한 확인 (`s3:PutObject`, `s3:PutObjectAcl`)
-- **경로 오류**: 버킷 이름/경로 확인
+
+- 릴리스 업로드 실패: `OKRBEST_DESKTOP_RELEASE_AWS_ROLE_TO_ASSUME`, `OKRBEST_DESKTOP_RELEASE_BUCKET` 값과 IAM Trust Policy 확인
+- Rainforest 업로드 실패: `OKRBEST_DESKTOP_DAILY_AWS_ACCESS_KEY_ID`, `OKRBEST_DESKTOP_DAILY_AWS_SECRET_ACCESS_KEY` 확인
 
 ### 자동 업데이트 문제
-- **`latest.yml` 형식 오류**: `patch_updater_yml.sh` 스크립트 확인
-- **업데이트 서버 접근 불가**: CORS 설정 확인
+
+- `latest.yml` / `latest-mac.yml` / `latest-linux.yml` 형식 확인
+- `latest.txt` 또는 채널 포인터 파일 생성 여부 확인
+- 버킷 퍼블릭 읽기 정책 및 CORS 확인
 
 ---
 
 ## 부록: 주요 파일 경로
 
-```
-워크플로우:
+```text
+워크플로우
 ├── .github/workflows/release.yaml
+├── .github/workflows/release-mas.yaml
 ├── .github/workflows/run-release-script.yml
 ├── .github/workflows/ci.yaml
 ├── .github/workflows/build-for-pr.yml
 ├── .github/workflows/nightly-builds.yaml
 ├── .github/workflows/nightly-main.yml
-├── .github/workflows/release-mas.yaml
+├── .github/workflows/nightly-rainforest.yml
 ├── .github/workflows/e2e-functional.yml
-└── .github/workflows/e2e-functional-template.yml
+├── .github/workflows/e2e-functional-template.yml
+└── .github/workflows/compatibility-matrix-testing.yml
 
-스크립트:
-├── scripts/patch_updater_yml.sh
+스크립트
+├── scripts/certum-sign.ps1
+├── scripts/cp_artifacts.sh
+├── scripts/generate_latest_version.sh
 ├── scripts/generate_release_markdown.sh
-├── scripts/generate_release_post.sh
-└── scripts/cp_artifacts.sh
-
-커스텀 액션:
-└── .github/actions/test/action.yaml
+└── scripts/generate_release_post.sh
 ```
 
 ---
 
-*문서 작성일: 2026-02-14*
+*문서 기준일: 2026-03-10*
