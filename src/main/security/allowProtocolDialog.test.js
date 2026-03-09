@@ -114,13 +114,13 @@ describe('main/allowProtocolDialog', () => {
         });
 
         it('should open protocol that is already allowed', () => {
-            allowProtocolDialog.handleDialogEvent('spotify:', 'spotify:album:3AQgdwMNCiN7awXch5fAaG');
+            allowProtocolDialog.handleDialogEvent(new URL('spotify:album:3AQgdwMNCiN7awXch5fAaG'));
             expect(shell.openExternal).toBeCalledWith('spotify:album:3AQgdwMNCiN7awXch5fAaG');
         });
 
         it('should not open message box if main window is missing', () => {
             MainWindow.get.mockImplementation(() => null);
-            allowProtocolDialog.handleDialogEvent('mattermost:', 'mattermost://community.mattermost.com');
+            allowProtocolDialog.handleDialogEvent(new URL('mattermost://community.mattermost.com'));
             expect(shell.openExternal).not.toBeCalled();
             expect(dialog.showMessageBox).not.toBeCalled();
         });
@@ -133,7 +133,7 @@ describe('main/allowProtocolDialog', () => {
             it('should open the window but not save when clicking Yes', async () => {
                 const promise = Promise.resolve({response: 0});
                 dialog.showMessageBox.mockImplementation(() => promise);
-                allowProtocolDialog.handleDialogEvent('mattermost:', 'mattermost://community.mattermost.com');
+                allowProtocolDialog.handleDialogEvent(new URL('mattermost://community.mattermost.com'));
                 await promise;
 
                 expect(shell.openExternal).toBeCalledWith('mattermost://community.mattermost.com');
@@ -144,7 +144,7 @@ describe('main/allowProtocolDialog', () => {
             it('should open the window and save when clicking Yes and Save', async () => {
                 const promise = Promise.resolve({response: 1});
                 dialog.showMessageBox.mockImplementation(() => promise);
-                allowProtocolDialog.handleDialogEvent('mattermost:', 'mattermost://community.mattermost.com');
+                allowProtocolDialog.handleDialogEvent(new URL('mattermost://community.mattermost.com'));
                 await promise;
 
                 expect(shell.openExternal).toBeCalledWith('mattermost://community.mattermost.com');
@@ -155,7 +155,7 @@ describe('main/allowProtocolDialog', () => {
             it('should do nothing when clicking No', async () => {
                 const promise = Promise.resolve({response: 2});
                 dialog.showMessageBox.mockImplementation(() => promise);
-                allowProtocolDialog.handleDialogEvent('mattermost:', 'mattermost://community.mattermost.com');
+                allowProtocolDialog.handleDialogEvent(new URL('mattermost://community.mattermost.com'));
                 await promise;
 
                 expect(shell.openExternal).not.toBeCalled();
@@ -167,7 +167,7 @@ describe('main/allowProtocolDialog', () => {
                 const promise = Promise.resolve({response: 0});
                 dialog.showMessageBox.mockImplementation(() => promise);
                 shell.openExternal.mockReturnValue(Promise.reject(new Error('bad protocol')));
-                allowProtocolDialog.handleDialogEvent('bad-protocol:', 'bad-protocol://community.mattermost.com');
+                allowProtocolDialog.handleDialogEvent(new URL('bad-protocol://community.mattermost.com'));
                 await promise;
 
                 expect(shell.openExternal).toBeCalledWith('bad-protocol://community.mattermost.com');

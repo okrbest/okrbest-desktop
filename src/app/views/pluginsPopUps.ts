@@ -81,7 +81,7 @@ export class PluginsPopUpsManager {
 
             // Check for custom protocol
             if (isCustomProtocol(parsedURL)) {
-                allowProtocolDialog.handleDialogEvent(parsedURL.protocol, url);
+                allowProtocolDialog.handleDialogEvent(parsedURL);
                 return {action: 'deny'};
             }
 
@@ -95,7 +95,7 @@ export class PluginsPopUpsManager {
                 NavigationManager.openLinkInNewTab(parsedURL);
             } else {
                 // We allow to open external links through browser.
-                shell.openExternal(url);
+                shell.openExternal(parsedURL.toString());
             }
 
             log.warn('prevented popup window from opening window');
