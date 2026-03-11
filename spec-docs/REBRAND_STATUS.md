@@ -1,6 +1,6 @@
 # OKR Best 리브랜딩 현황
 
-> 마지막 업데이트: 2026-03-10
+> 마지막 업데이트: 2026-03-11
 >
 > 상태 라벨:
 > - `완료`: 저장소에서 직접 확인됨
@@ -93,14 +93,22 @@
 
 상태: 완료
 
-### 1.8 저작권 헤더
+### 1.8 Rainforest daily build 파일명 정리
+
+- `.github/workflows/nightly-rainforest.yml`의 `mattermost` 기반 파일명 치환 정규식 제거
+- Rainforest 업로드 전 `okrbest-desktop-${VERSION}-...` 산출물을 `okrbest-desktop-daily-develop-...` 고정 alias로 이동하도록 수정
+- 이 변경으로 `daily-develop` stable key는 유지하면서, 날짜별 nightly 파일이 S3에 누적되지 않도록 기존 workflow 의도를 유지함
+
+상태: 완료
+
+### 1.9 저작권 헤더
 
 - 다수의 파일에 OKR Best 추가 저작권 라인이 반영됨
 - 원본 `Mattermost, Inc.` 저작권 라인은 Apache 2.0 및 upstream 추적을 위해 유지되는 것이 정상임
 
 상태: 완료
 
-### 1.9 테스트 파일 정리
+### 1.10 테스트 파일 정리
 
 - 앱 동작에 영향을 주는 mock 값 수정은 완료된 것으로 유지
 - `mattermost://` 테스트, 클래스명, 서버 응답 mock 등은 호환성/구조상 유지되는 정상 예외로 간주
@@ -117,7 +125,6 @@
 
 | 파일 | 잔여 내용 | 상태 |
 |------|----------|------|
-| `.github/workflows/nightly-rainforest.yml` | 파일명 치환 정규식에 `mattermost` 문자열이 남아 있음 | 미완료 |
 | `scripts/generate_release_post.sh` | GitHub 저장소 URL, PR 링크가 Mattermost 기준으로 남아 있음 | 미완료 |
 
 ### 2.2 릴리스 환경 문서/상태 동기화
@@ -215,7 +222,6 @@
 
 | 우선순위 | 작업 | 구분 | 상태 |
 |----------|------|------|------|
-| 높음 | `nightly-rainforest.yml`의 `mattermost` 파일명 치환 제거 | 저장소 | 미완료 |
 | 높음 | `scripts/generate_release_post.sh`의 Mattermost GitHub 링크 교체 | 저장소 | 미완료 |
 | 중간 | GitHub Secrets / Variables 실제 등록 여부 확인 | 외부 | 외부 미검증 |
 | 중간 | Apple Developer / Certum / AWS 실제 인프라 상태 확인 | 외부 | 외부 미검증 |
