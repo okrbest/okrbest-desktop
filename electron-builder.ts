@@ -214,4 +214,6 @@ if (process.env.CI_MAC_ZIP_ONLY) {
     config.mac.gatekeeperAssess = false;
 }
 
+export const protocols = config.protocols;
+
 module.exports = config;
