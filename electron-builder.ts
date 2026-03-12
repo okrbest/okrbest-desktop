@@ -13,7 +13,7 @@ function getMacVersions() {
     if (process.env.GITHUB_RUN_ID) {
         buildVersion = `${process.env.GITHUB_RUN_ID}${process.env.GITHUB_RUN_ATTEMPT || ''}`;
     } else {
-        const match = pkg.version.match(/-\d+\.(\d+)$/);
+        const match = pkg.version.match(/-[^.]+\.(\d+)$/);
         if (match) {
             buildVersion = match[1];
         }
@@ -151,7 +151,6 @@ const config = {
             NSUserActivityTypes: ['INSendMessageIntent'],
         },
         singleArchFiles: '*',
-        ...getMacVersions(),
     },
     masDev: {
         provisioningProfile: './dev.provisionprofile',
