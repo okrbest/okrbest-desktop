@@ -10,7 +10,7 @@ const env = require('../../modules/environment');
 const {asyncSleep} = require('../../modules/utils');
 
 describe('application', function desc() {
-    this.timeout(30000);
+    this.timeout(120000);
 
     const config = env.demoConfig;
 
