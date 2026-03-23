@@ -456,7 +456,7 @@ export class CallsWidgetWindow {
             }
         }
 
-        const serverURL = this.getViewURL();
+        const serverURL = this.getViewURL() ?? WebContentsManager.getServerURLByViewId(view.id);
         if (!serverURL) {
             throw new Error('handleGetDesktopSources: serverURL not found');
         }
