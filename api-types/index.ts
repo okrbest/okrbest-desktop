@@ -121,6 +121,7 @@ export type DesktopAPI = {
 
     // Utility
     unregister: (channel: string) => void;
+    closeWindow: () => void;
 
     // Popouts
     canPopout: () => Promise<boolean>;
