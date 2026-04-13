@@ -61,7 +61,7 @@ jobs:
             echo "Error: Branch '$BRANCH' does not match release-X.Y pattern"
             exit 1
           fi
-          echo "Running release script on branch: ${branch_name}"
+          echo "Running release script on branch: $BRANCH"
 
       - name: Run release script
         run: |
