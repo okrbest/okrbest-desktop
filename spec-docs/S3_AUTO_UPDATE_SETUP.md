@@ -1,150 +1,113 @@
-# AWS S3 & 자동 업데이트 설정 가이드 (초보자용)
+# AWS S3 & 자동 업데이트 설정 가이드
 
-이 문서는 OKR Best Desktop이 사용하는 **모든 AWS S3 경로**를 처음 세팅하는 사람이 단계별로 따라 하면 정상 작동하는 것을 목표로 한다. 개념 설명보다는 "무엇을 만들고 어떤 값을 어디에 넣는가"에 집중한다.
+이 문서는 OKR Best Desktop의 AWS 인프라를 처음 세팅하는 사람을 위한 **순차 실행 가이드**다. 각 STEP을 위에서 아래로 그대로 따라 하면 작동하는 상태가 된다.
 
-관련 문서:
-- [DEPLOYMENT_ENVIRONMENT_SETUP.md](DEPLOYMENT_ENVIRONMENT_SETUP.md) — 전체 시크릿 체크리스트
-- [CI_CD.md](CI_CD.md) — 릴리즈 플로우 전반
-- [APPLE_DEVELOPER_ACCOUNT_SETUP.md](APPLE_DEVELOPER_ACCOUNT_SETUP.md) — macOS 서명
+이 프로젝트는 세 가지 독립된 S3 경로를 쓴다. **PART A**만 완료하면 정식 릴리즈와 자동 업데이트가 작동한다. PART B·C는 선택이며 필요할 때만 추가한다.
 
----
+| PART | 목적 | 필수? | 소요 시간 |
+|---|---|---|---|
+| **A** | 정식 릴리즈 + 자동 업데이트 (OIDC) | ✅ 필수 | ~90분 |
+| **B** | Nightly / Rainforest QA 빌드 배포 | 선택 | ~30분 |
+| **C** | E2E 테스트 리포트 저장 | 선택 | ~20분 |
 
-## 0. 전체 그림 — 이 프로젝트는 AWS S3를 어디에 쓰는가
-
-이 프로젝트는 서로 독립된 **4개의 S3 경로**를 사용한다. 각 경로는 **버킷도 다르고, 인증 방식도 다르고, 담당 워크플로도 다르다.** 먼저 이 표를 이해하는 것이 모든 혼란을 예방한다.
-
-| # | 경로 이름 | 버킷 | 인증 방식 | 담당 워크플로 | 용도 |
-|---|---|---|---|---|---|
-| A | **Release** | `OKRBEST_DESKTOP_RELEASE_BUCKET` 시크릿 | **OIDC** (IAM Role) | [release.yaml](../.github/workflows/release.yaml), [nightly-main.yml](../.github/workflows/nightly-main.yml) | 정식/RC 릴리즈 바이너리 + 자동 업데이트 포인터 (`latest.txt` 등) |
-| B | **Daily (Rainforest)** | `okrbest-desktop-daily-builds` **(워크플로에 하드코딩)** | 정적 IAM User 키 | [nightly-rainforest.yml](../.github/workflows/nightly-rainforest.yml) | Rainforest QA가 매일 최신 빌드를 받아가는 고정 URL |
-| C | **E2E Reports** | `okrbest-cypress-report` **(워크플로에 하드코딩)** | 정적 IAM User 키 | [e2e-functional-template.yml](../.github/workflows/e2e-functional-template.yml) | Playwright/Cypress 테스트 리포트 HTML 아카이브 |
-| D | **자동 업데이트 배포 엔드포인트** | `releases.okrbest.com` (CDN/도메인) | — (읽기 전용) | 없음 (앱이 직접 fetch) | 설치된 앱이 버전 체크용으로 접속 |
-
-- **A**와 **D**는 같은 파일을 다룬다. A가 S3에 업로드하면 D(도메인/CDN)를 통해 앱이 읽는다. A를 설정하지 않으면 자동 업데이트가 동작하지 않는다.
-- **B**는 A와 완전히 독립된 별도 버킷이다. Daily develop 빌드를 고정 URL로 제공하는 용도이며, 자동 업데이트와 무관하다.
-- **C**는 배포가 아니라 **테스트 결과 저장소**다. 운영에 필수는 아니지만 CI에서 E2E를 돌리려면 필요하다.
-
-아래 섹션은 이 네 경로를 순서대로 설정하는 방법이다. **A는 필수**, **B·C는 선택** (nightly Rainforest 또는 E2E를 실제로 돌릴 때만).
+> **전제**: AWS Console 로그인 가능, GitHub 레포 관리자 권한, Route 53에 등록된 도메인 1개 (예: `okrbest.com`), 로컬에 AWS CLI 설치.
 
 ---
 
-## 1. 이 프로젝트의 자동 업데이트 구조 (Release 경로 이해)
+# PART A — 정식 릴리즈 + 자동 업데이트 (필수)
 
-A 경로를 만들기 전에 앱이 어떻게 S3에 접근하는지 이해할 필요가 있다.
+이 PART는 8 STEP이다. 순서대로 따라가면 된다.
 
-### 동작 흐름
+- STEP 1: 시작 전 준비물 확인
+- STEP 2: S3 버킷 만들기
+- STEP 3: GitHub OIDC Provider 등록
+- STEP 4: IAM Policy + Role 만들기
+- STEP 5: GitHub Secrets 등록
+- STEP 6: 도메인 + CloudFront + HTTPS 연결
+- STEP 7: 첫 RC 태그로 전체 플로우 검증
+- STEP 8: 자동 업데이트 알림 확인
 
-1. 설치된 앱이 1시간마다 [src/main/updateNotifier.ts:149](../src/main/updateNotifier.ts#L149)에서 다음 URL에 HTTP GET을 보낸다:
-   ```
-   https://releases.okrbest.com/desktop/latest.txt
-   ```
-2. 서버는 최신 버전 문자열(예: `5.12.0`) 한 줄을 plain text로 응답한다.
-3. 앱은 `semver.gt(remoteVersion, currentVersion)`으로 비교해 업그레이드 여부를 결정한다 ([updateNotifier.ts:168](../src/main/updateNotifier.ts#L168)).
-4. 업데이트가 있으면 사용자에게 알림을 띄운다. **다운로드는 수동** — 앱이 직접 파일을 내려받지 않고 사용자가 배포 페이지로 이동해 새 설치본을 받는다.
+---
 
-### 일반적인 Electron 앱과 다른 점
+## STEP 1. 시작 전 준비물 확인
 
-이 프로젝트는 **`electron-updater`를 쓰지 않는다.** 커스텀 HTTP fetch + plain text 비교 방식이다. 그래서 `latest.yml`, `latest-mac.yml` 등은 업로드되긴 하지만 ([cp_artifacts.sh:18](../scripts/cp_artifacts.sh#L18)) **현재 런타임은 읽지 않는다** — 향후 electron-updater로 마이그레이션할 경우를 대비한 흔적이다.
+이 5가지가 모두 준비되어 있는지 먼저 확인한다. 하나라도 없으면 STEP 2로 넘어가기 전에 확보한다.
 
-### 업데이트 URL은 빌드 타임 하드코딩
+- [ ] AWS 계정 (루트 아닌 IAM 사용자, 콘솔 접속 가능)
+- [ ] 로컬 `aws` CLI 설치 및 `aws configure`로 자격 증명 설정 완료
+- [ ] Route 53에 등록된 도메인 (이 가이드는 `okrbest.com` 예시. 실제 값으로 바꿔 읽을 것)
+- [ ] 이 레포(`okrbest/okrbest-desktop`)의 GitHub 관리자 권한
+- [ ] 앱 소스의 [src/common/config/buildConfig.ts:39](../src/common/config/buildConfig.ts#L39)가 가리키는 업데이트 URL이 무엇인지 확인
 
-[src/common/config/buildConfig.ts:39](../src/common/config/buildConfig.ts#L39):
+마지막 항목이 중요하다. 기본값은 다음과 같다:
 ```ts
 updateNotificationURL: 'https://releases.okrbest.com/desktop',
 ```
 
-**환경변수로 바꿀 수 없다.** 자체 인프라에서 쓰려면 이 상수를 수정해 재빌드해야 한다. 기본값을 그대로 쓰는 경우에만 아래 가이드의 도메인 예시(`releases.okrbest.com`)를 그대로 따라 한다.
-
-### 채널별 파일명 규칙
-
-[scripts/generate_latest_version.sh](../scripts/generate_latest_version.sh)와 [updateNotifier.ts:143-146](../src/main/updateNotifier.ts#L143-L146)가 같은 규칙을 사용한다. 실행 중인 앱 버전에 따라 다른 파일을 본다:
-
-| 앱 버전 | 참조하는 파일 |
-|---|---|
-| `5.12.0` (stable) | `latest.txt` |
-| `5.12.0-rc.1` | `rc.txt` |
-| `5.12.0-nightly.20260413` | `nightly.txt` |
-| `5.12.0-mas.1` | `mas.txt` |
-
-**stable을 쓰는 사용자는 rc를 자동으로 보지 않는다.** 채널 업그레이드는 수동 재설치로만 일어난다.
+**이 URL은 빌드 타임에 하드코딩된다.** 즉 이 가이드 전체가 사용할 도메인은 위 값에서 이미 정해져 있다 — 이 예시에서는 `releases.okrbest.com`. 다른 도메인을 쓰려면 먼저 `buildConfig.ts`를 수정하고 앱을 재빌드해야 한다. **바꿀 일이 없다면 이대로 진행하고, 아래 가이드의 `releases.okrbest.com`을 그대로 사용한다.**
 
 ---
 
-## 2. 경로 A — Release 버킷 설정 (필수, OIDC)
+## STEP 2. S3 버킷 만들기
 
-정식 릴리즈·RC·MAS 빌드 업로드 경로. 자동 업데이트를 작동시키려면 반드시 설정해야 한다.
+### 2-1. 할 일
 
-### 2-1. 사전 준비
+AWS Console → **S3** → **Create bucket**. 아래 값을 그대로 입력한다.
 
-- AWS 계정 (루트 아닌 IAM 권한 있는 사용자)
-- 도메인 (예: `releases.okrbest.com`) — 버킷 이름으로 쓸 예정이면 이름도 도메인과 동일해야 한다
-- 이 레포의 GitHub 관리자 권한 (Secrets 등록용)
-
-### 2-2. S3 버킷 생성
-
-AWS Console → **S3** → **Create bucket**
-
-| 항목 | 값 |
+| 항목 | 입력값 |
 |---|---|
-| Bucket name | `releases.okrbest.com` (또는 원하는 이름) |
-| AWS Region | `us-east-1` ([release.yaml:192](../.github/workflows/release.yaml#L192) 고정) |
-| Object Ownership | ACLs disabled (Bucket owner enforced) 권장 |
-| Block Public Access | **모든 옵션 OFF** (9번 섹션의 CloudFront 구성을 쓰면 다시 켤 수 있음) |
-| Bucket Versioning | Disabled |
-| Default encryption | SSE-S3 (기본값) |
+| Bucket name | `releases.okrbest.com` (도메인과 **정확히 같은 이름**) |
+| AWS Region | **US East (N. Virginia) `us-east-1`** (변경 금지 — 워크플로 고정) |
+| Object Ownership | ACLs disabled (Bucket owner enforced) |
+| Block Public Access | **모든 4개 옵션 체크 해제** |
+| "I acknowledge..." 경고 | 체크 |
+| Bucket Versioning | Disable |
+| Default encryption | Amazon S3 managed keys (SSE-S3) — 기본값 유지 |
+| Object Lock | Disable |
 
-> ⚠️ Block Public Access 해제는 위험한 작업이다. 이 버킷에는 **릴리즈 artifact와 버전 메타파일만** 올리고 민감 데이터는 절대 넣지 말 것.
+**Create bucket** 클릭.
 
-### 2-3. 퍼블릭 읽기 정책
+> ⚠️ Block Public Access를 지금 해제하는 이유는 STEP 6에서 CloudFront OAC로 버킷을 다시 비공개로 되돌릴 것이기 때문이다. 잠시만 공개로 둔다.
 
-버킷 → **Permissions** → **Bucket policy** → Edit (`YOUR-RELEASE-BUCKET` 교체):
+### 2-2. 검증
 
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "PublicReadGetObject",
-      "Effect": "Allow",
-      "Principal": "*",
-      "Action": "s3:GetObject",
-      "Resource": "arn:aws:s3:::YOUR-RELEASE-BUCKET/*"
-    }
-  ]
-}
+터미널에서:
+```bash
+aws s3 ls s3://releases.okrbest.com/
 ```
+에러 없이 빈 줄(또는 아무 출력 없음)이 나오면 성공. `NoSuchBucket` 에러가 나면 버킷 이름을 다시 확인한다.
 
-### 2-4. CORS 설정 (선택)
+---
 
-앱은 Electron `net.fetch`를 쓰므로 CORS는 이론상 불필요하지만, 향후 웹 대시보드 호환을 위해 설정해 두면 좋다:
+## STEP 3. GitHub OIDC Provider 등록
 
-```json
-[
-  {
-    "AllowedHeaders": ["*"],
-    "AllowedMethods": ["GET", "HEAD"],
-    "AllowedOrigins": ["*"],
-    "ExposeHeaders": ["ETag", "Content-Length"],
-    "MaxAgeSeconds": 3000
-  }
-]
-```
+AWS 계정당 한 번만 해도 되는 작업이다. 이미 다른 GitHub Actions 워크플로용으로 등록돼 있다면 STEP 4로 건너뛴다.
 
-### 2-5. GitHub OIDC Provider 등록 (AWS 계정당 1회)
+### 3-1. 할 일
 
-AWS Console → **IAM** → **Identity providers** → **Add provider**
+AWS Console → **IAM** → 좌측 **Identity providers** → **Add provider**.
 
-| 항목 | 값 |
+| 항목 | 입력값 |
 |---|---|
 | Provider type | OpenID Connect |
 | Provider URL | `https://token.actions.githubusercontent.com` |
 | Audience | `sts.amazonaws.com` |
 
-이 Provider는 한 번만 만들면 되고, 같은 AWS 계정 안의 다른 GitHub Actions Role에서도 공유된다.
+**Add provider** 클릭.
 
-### 2-6. IAM Policy — Release 업로드용
+### 3-2. 검증
 
-IAM → **Policies** → **Create policy** → JSON 탭 (`YOUR-RELEASE-BUCKET` 교체):
+Identity providers 목록에 `token.actions.githubusercontent.com`이 보이면 성공. 상세 페이지에서 Thumbprint가 자동으로 채워져 있는지 확인.
+
+---
+
+## STEP 4. IAM Policy + Role 만들기
+
+Release 업로드 전용 IAM Role을 만든다. OIDC로 GitHub Actions가 이 Role을 assume해서 S3에 업로드한다.
+
+### 4-1. 정책(Policy) 생성
+
+AWS Console → **IAM** → **Policies** → **Create policy** → JSON 탭에 아래를 붙여넣기 (버킷명이 다르면 바꿀 것):
 
 ```json
 {
@@ -160,31 +123,32 @@ IAM → **Policies** → **Create policy** → JSON 탭 (`YOUR-RELEASE-BUCKET` �
         "s3:ListBucket"
       ],
       "Resource": [
-        "arn:aws:s3:::YOUR-RELEASE-BUCKET",
-        "arn:aws:s3:::YOUR-RELEASE-BUCKET/*"
+        "arn:aws:s3:::releases.okrbest.com",
+        "arn:aws:s3:::releases.okrbest.com/*"
       ]
     }
   ]
 }
 ```
 
-정책 이름: `OKRBestDesktopReleaseS3Upload`
+**Next** → 정책 이름: `OKRBestDesktopReleaseS3Upload` → **Create policy**.
 
-### 2-7. IAM Role 생성
+### 4-2. Role 생성
 
-IAM → **Roles** → **Create role**
+IAM → **Roles** → **Create role**.
 
-1. Trusted entity type: **Web identity**
-2. Identity provider: `token.actions.githubusercontent.com`
-3. Audience: `sts.amazonaws.com`
-4. GitHub organization: `okrbest`
-5. GitHub repository: `okrbest-desktop`
-6. 위 policy `OKRBestDesktopReleaseS3Upload` 연결
-7. Role name: `OKRBestDesktopRelease`
+1. **Trusted entity type**: Web identity
+2. **Identity provider**: `token.actions.githubusercontent.com`
+3. **Audience**: `sts.amazonaws.com`
+4. **GitHub organization**: `okrbest`
+5. **GitHub repository**: `okrbest-desktop`
+6. **GitHub branch**: 비워둠 (다음 단계에서 trust policy를 직접 수정)
+7. **Next** → 방금 만든 정책 `OKRBestDesktopReleaseS3Upload` 체크
+8. **Next** → **Role name**: `OKRBestDesktopRelease` → **Create role**
 
-### 2-8. Trust Policy 강화 (보안상 필수)
+### 4-3. Trust Policy 강화 (보안상 필수)
 
-Role → **Trust relationships** → Edit trust policy. 기본값은 너무 관대하므로 아래로 교체 (`123456789012`와 조직명/레포명 교체):
+방금 만든 Role 상세 페이지 → **Trust relationships** 탭 → **Edit trust policy**. 전체 JSON을 아래로 교체한다 (`123456789012`를 본인 AWS 계정 ID로 교체):
 
 ```json
 {
@@ -212,111 +176,337 @@ Role → **Trust relationships** → Edit trust policy. 기본값은 너무 관�
 }
 ```
 
-> `master` 브랜치를 추가한 것은 [nightly-main.yml:222](../.github/workflows/nightly-main.yml#L222)이 같은 Role을 사용하기 때문이다. nightly 태그 (`workflow_dispatch`에서 생성)도 이 Role로 release 버킷에 업로드한다. 태그 전용으로만 제한하면 nightly가 실패한다.
+**Update policy** 클릭.
 
-### 2-9. GitHub Secrets 등록
+> `sub` 조건이 있어야 **이 레포의 `v*` 태그 또는 master 브랜치**에서만 이 Role을 쓸 수 있다. master 브랜치를 포함시키는 이유는 [nightly-main.yml](../.github/workflows/nightly-main.yml)이 master에서 실행되어 같은 Role로 release 버킷에 업로드하기 때문이다. 이 조건이 없으면 같은 OIDC provider로 다른 레포가 이 Role을 assume해 버킷을 오염시킬 수 있다.
 
-레포 → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**
+### 4-4. Role ARN 복사
 
-| Secret 이름 | 값 |
-|---|---|
-| `OKRBEST_DESKTOP_RELEASE_AWS_ROLE_TO_ASSUME` | 2-7에서 만든 Role ARN (`arn:aws:iam::...:role/OKRBestDesktopRelease`) |
-| `OKRBEST_DESKTOP_RELEASE_BUCKET` | 버킷 이름 (예: `releases.okrbest.com`) |
+Role 상세 페이지 상단의 `arn:aws:iam::123456789012:role/OKRBestDesktopRelease` 전체를 복사해 둔다. 다음 STEP에서 사용한다.
 
-### 2-10. 도메인 연결
+### 4-5. 검증
 
-이대로 두면 URL이 `https://YOUR-RELEASE-BUCKET.s3.amazonaws.com/desktop/latest.txt`가 된다. 앱은 `buildConfig.ts`에 하드코딩된 `releases.okrbest.com/desktop/latest.txt`를 보므로 **도메인 연결 없이는 작동하지 않는다.**
-
-**옵션 A: S3 Website Endpoint (간단, HTTP만)**
-1. 버킷 이름을 도메인과 정확히 같게 (`releases.okrbest.com`)
-2. 버킷 Properties → Static website hosting 활성화
-3. Route 53 → A 레코드 → Alias to S3 website endpoint
-
-단점: HTTPS 불가. **프로덕션 비권장.**
-
-**옵션 B: CloudFront + ACM (권장)**
-1. **ACM** (반드시 `us-east-1` 리전) → Request certificate → `releases.okrbest.com` → DNS 검증
-2. **CloudFront** → Create distribution
-   - Origin: S3 버킷 (REST endpoint, 주의: website endpoint 아님)
-   - Origin access: **Origin access control (OAC)** — 새로 만들고 "Update bucket policy" 허용
-   - Viewer protocol policy: Redirect HTTP to HTTPS
-   - Alternate domain name (CNAME): `releases.okrbest.com`
-   - Custom SSL certificate: 방금 만든 ACM 인증서
-3. **Route 53** → `releases` A 레코드 → Alias to CloudFront distribution
-4. 버킷 정책은 CloudFront가 자동으로 OAC 전용으로 업데이트한다 — 이후 Block Public Access를 다시 **ON**으로 돌려도 된다
-
-CloudFront를 쓰면 전 세계 엣지 캐시 혜택을 받지만, 릴리즈 직후 새 `latest.txt`가 즉시 반영되도록 [release.yaml](../.github/workflows/release.yaml)에 invalidation step 추가가 필요하다:
-
-```yaml
-- name: release/invalidate-cloudfront
-  run: |
-    aws cloudfront create-invalidation \
-      --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
-      --paths "/desktop/latest.txt" "/desktop/rc.txt" "/desktop/nightly.txt" "/desktop/mas.txt"
-```
-
-추가 IAM 권한: `cloudfront:CreateInvalidation` on 해당 distribution.
-
-### 2-11. 검증
-
-임시 브랜치에 RC 태그를 찍거나, [release.yaml](../.github/workflows/release.yaml)의 `upload-to-s3` job이 성공하는지 확인:
-
-```bash
-aws s3 ls s3://YOUR-RELEASE-BUCKET/desktop/
-# 예상:
-#   rc.txt
-#   5.12.0-rc.1/okrbest-desktop-5.12.0-rc.1-win-x64.msi
-#   5.12.0-rc.1/okrbest-desktop-5.12.0-rc.1-mac-universal.dmg
-
-curl https://releases.okrbest.com/desktop/rc.txt
-# → 5.12.0-rc.1
-```
-
-앱에서 View → Check for Updates 메뉴로 즉시 업데이트 체크를 트리거할 수 있다.
+Role이 `OKRBestDesktopRelease`로 생성되었고, Trust relationships에 `StringLike`로 `refs/tags/v*`와 `refs/heads/master` 두 줄이 모두 있는지 확인.
 
 ---
 
-## 3. 경로 B — Daily Builds 버킷 설정 (선택, 정적 키)
+## STEP 5. GitHub Secrets 등록
 
-Rainforest QA나 내부 테스터가 매일 동일한 URL에서 최신 develop 빌드를 받아갈 수 있도록 제공하는 경로. nightly-rainforest 워크플로를 돌릴 때만 필요하다.
+레포 → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**. 두 개를 각각 등록한다.
 
-이 경로는 **2번과 완전히 독립된** 별개의 버킷·사용자·키를 사용한다. 2번을 아무리 잘 설정해도 B는 작동하지 않는다.
+| Secret Name | Value |
+|---|---|
+| `OKRBEST_DESKTOP_RELEASE_AWS_ROLE_TO_ASSUME` | STEP 4-4에서 복사한 Role ARN |
+| `OKRBEST_DESKTOP_RELEASE_BUCKET` | `releases.okrbest.com` |
 
-### 3-1. S3 버킷 생성 — 이름이 고정되어 있다
+### 검증
 
-[nightly-rainforest.yml:173](../.github/workflows/nightly-rainforest.yml#L173)에 버킷 이름이 **하드코딩**되어 있다:
+Secrets 목록에 위 두 이름이 보이면 된다. 값은 마스킹되어 확인할 수 없다.
 
-```yaml
-run: aws s3 cp ./build/ s3://okrbest-desktop-daily-builds/ --acl public-read --cache-control "no-cache" --recursive
+---
+
+## STEP 6. 도메인 + CloudFront + HTTPS 연결
+
+이 STEP을 건너뛰면 앱이 `https://releases.okrbest.com/desktop/latest.txt`에 접근할 수 없어 **자동 업데이트가 작동하지 않는다**.
+
+6 STEP 중 가장 복잡하지만 한 번만 하면 된다.
+
+### 6-1. ACM 인증서 발급 (반드시 us-east-1)
+
+AWS Console → 우상단 리전을 **US East (N. Virginia) `us-east-1`** 로 변경 (CloudFront는 반드시 이 리전의 인증서만 사용할 수 있음).
+
+→ **Certificate Manager (ACM)** → **Request certificate** → **Request a public certificate** → **Next**
+
+| 항목 | 입력값 |
+|---|---|
+| Fully qualified domain name | `releases.okrbest.com` |
+| Validation method | DNS validation |
+| Key algorithm | RSA 2048 |
+
+**Request**.
+
+생성된 인증서를 클릭 → "Create records in Route 53" 버튼 → **Create records**. Route 53이 자동으로 CNAME 검증 레코드를 추가한다. 5~10분 기다리면 Status가 **Issued**로 바뀐다.
+
+### 6-2. CloudFront Distribution 생성
+
+AWS Console → **CloudFront** → **Create distribution**.
+
+| 항목 | 입력값 |
+|---|---|
+| Origin domain | `releases.okrbest.com.s3.us-east-1.amazonaws.com` (드롭다운에서 S3 버킷 선택 — **website endpoint 아님**, REST endpoint) |
+| Origin access | Origin access control settings (recommended) |
+| Origin access control | **Create new OAC** → 기본값으로 Create → 생성된 OAC 선택 |
+| Viewer protocol policy | **Redirect HTTP to HTTPS** |
+| Allowed HTTP methods | GET, HEAD |
+| Cache policy | CachingOptimized |
+| Alternate domain name (CNAME) | `releases.okrbest.com` |
+| Custom SSL certificate | 6-1에서 발급한 `releases.okrbest.com` 인증서 선택 |
+| Default root object | 비워둠 |
+| Price class | Use all edge locations (또는 예산에 맞게) |
+
+**Create distribution** 클릭.
+
+생성 후 상단 경고창에 "The S3 bucket policy needs to be updated" 링크가 뜬다 — **Copy policy** 클릭 → S3 버킷 Permissions → Bucket policy → Edit에 붙여넣기 → Save. 이로써 CloudFront만 버킷에 접근할 수 있게 된다.
+
+### 6-3. S3 Block Public Access 다시 켜기
+
+이제 CloudFront OAC만 버킷에 접근하므로 퍼블릭 접근을 차단해도 된다.
+
+S3 → `releases.okrbest.com` 버킷 → **Permissions** → **Block public access (bucket settings)** → **Edit** → **Block all public access** 체크 → Save.
+
+### 6-4. CloudFront 배포 대기
+
+CloudFront 목록에서 방금 만든 distribution의 Status가 **Deployed**가 될 때까지 기다린다 (5~15분). 배포가 끝나면 도메인 이름이 `d1234xxxxx.cloudfront.net` 형태로 표시된다.
+
+### 6-5. Route 53에 A 레코드 추가
+
+Route 53 → Hosted zones → `okrbest.com` → **Create record**.
+
+| 항목 | 입력값 |
+|---|---|
+| Record name | `releases` |
+| Record type | A |
+| Alias | **Yes** |
+| Route traffic to | Alias to CloudFront distribution |
+| Choose distribution | 방금 만든 distribution 선택 |
+| Routing policy | Simple routing |
+
+**Create records** 클릭.
+
+### 6-6. CloudFront invalidation 권한 추가 (선택이지만 권장)
+
+릴리즈 직후 새 `latest.txt`를 즉시 반영하려면 워크플로가 CloudFront 캐시를 무효화해야 한다.
+
+STEP 4-1의 정책에 다음 Statement를 추가한다 (`DISTRIBUTION_ID`는 방금 만든 distribution의 ID):
+
+```json
+{
+  "Sid": "AllowCloudFrontInvalidation",
+  "Effect": "Allow",
+  "Action": "cloudfront:CreateInvalidation",
+  "Resource": "arn:aws:cloudfront::123456789012:distribution/DISTRIBUTION_ID"
+}
 ```
 
-따라서 버킷 이름은 반드시 `okrbest-desktop-daily-builds`여야 한다. 다른 이름을 쓰고 싶다면 YAML 파일을 직접 수정해 커밋해야 한다.
+그런 다음 [release.yaml](../.github/workflows/release.yaml)의 `upload-to-s3` job 끝에 다음 step을 추가하고 커밋:
 
-| 항목 | 값 |
+```yaml
+      - name: release/invalidate-cloudfront
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/desktop/latest.txt" "/desktop/rc.txt" "/desktop/nightly.txt" "/desktop/mas.txt"
+```
+
+GitHub Secret `CLOUDFRONT_DISTRIBUTION_ID`도 추가 등록한다.
+
+### 6-7. 검증
+
+로컬 터미널에서:
+```bash
+# 임시 테스트 파일 업로드
+echo "0.0.0" > /tmp/latest.txt
+aws s3 cp /tmp/latest.txt s3://releases.okrbest.com/desktop/latest.txt --cache-control "no-cache"
+
+# HTTPS로 접근
+curl https://releases.okrbest.com/desktop/latest.txt
+# 기대 출력: 0.0.0
+
+# HTTP는 HTTPS로 리다이렉트되어야 함
+curl -I http://releases.okrbest.com/desktop/latest.txt
+# Location: https://releases.okrbest.com/... 확인
+
+# 임시 파일 삭제
+aws s3 rm s3://releases.okrbest.com/desktop/latest.txt
+```
+
+세 명령이 모두 정상 응답하면 PART A의 AWS 쪽 세팅은 완료다.
+
+> **DNS 전파 지연으로 실패하는 경우**: Route 53 CNAME/A 레코드 변경 후 최대 5분까지 전파 대기 필요. `dig releases.okrbest.com`로 확인.
+
+---
+
+## STEP 7. 첫 RC 태그로 전체 플로우 검증
+
+이제 실제 워크플로가 AWS와 잘 연동되는지 확인한다.
+
+### 7-1. RC 태그 찍기
+
+로컬에서:
+```bash
+git checkout -b release-test-$(date +%Y%m%d)  # 또는 기존 release-X.Y 브랜치
+./scripts/release.sh start                    # rc.1 태그 생성
+git push --follow-tags
+```
+
+GitHub → Actions 탭에서 [release.yaml](../.github/workflows/release.yaml) 워크플로가 시작되는지 확인. 15~30분 정도 걸린다.
+
+### 7-2. S3 업로드 확인
+
+성공 후:
+```bash
+aws s3 ls s3://releases.okrbest.com/desktop/
+```
+
+기대 출력 (버전은 다를 수 있음):
+```
+                           PRE 5.12.0-rc.1/
+2026-04-13 10:23:45         15 rc.txt
+2026-04-13 10:23:40       1234 latest.yml
+...
+```
+
+```bash
+curl https://releases.okrbest.com/desktop/rc.txt
+# 기대: 5.12.0-rc.1 (또는 방금 찍은 버전)
+```
+
+### 7-3. 만약 실패한다면
+
+- `AccessDenied`: STEP 4-3의 Trust Policy `sub` 조건에 `refs/tags/v*`가 포함됐는지 재확인. 브랜치에서 `workflow_dispatch`로 돌렸다면 `refs/heads/...`도 필요.
+- `The role ... cannot be assumed`: STEP 4-4의 Role ARN이 STEP 5의 Secret 값과 정확히 일치하는지 확인.
+- `NoSuchBucket`: STEP 5의 `OKRBEST_DESKTOP_RELEASE_BUCKET` 값에 오타가 없는지 확인.
+- 워크플로가 아예 트리거되지 않음: 태그 이름이 `v[0-9]+.[0-9]+.[0-9]+(-rc.[0-9]+)?` 패턴에 맞는지 확인 ([release.yaml:6-7](../.github/workflows/release.yaml#L6-L7)).
+
+---
+
+## STEP 8. 자동 업데이트 알림 확인
+
+마지막 검증: 실제 앱이 새 버전을 감지하는지 확인.
+
+### 8-1. 테스트 시나리오
+
+방금 찍은 RC 태그 빌드의 MSI/DMG를 다운로드해 설치한다. 설치 후 앱을 실행한 상태에서:
+
+```bash
+# 앱 버전보다 높은 가짜 버전으로 rc.txt를 임시 덮어쓰기
+echo "99.0.0-rc.1" > /tmp/rc.txt
+aws s3 cp /tmp/rc.txt s3://releases.okrbest.com/desktop/rc.txt --cache-control "no-cache"
+
+# CloudFront 캐시가 걸려 있으면 invalidation
+aws cloudfront create-invalidation \
+  --distribution-id DISTRIBUTION_ID \
+  --paths "/desktop/rc.txt"
+```
+
+설치된 앱에서 **View 메뉴 → Check for Updates** 클릭.
+
+### 8-2. 기대 결과
+
+"새 업데이트가 있습니다: 99.0.0-rc.1" 알림이 뜬다. 뜨면 성공.
+
+### 8-3. 원상복구 (중요)
+
+테스트 후 반드시 실제 버전으로 되돌린다:
+```bash
+echo "5.12.0-rc.1" > /tmp/rc.txt   # 실제 RC 버전
+aws s3 cp /tmp/rc.txt s3://releases.okrbest.com/desktop/rc.txt --cache-control "no-cache"
+```
+
+### 8-4. 만약 "No update available"만 뜬다면
+
+- 브라우저에서 `https://releases.okrbest.com/desktop/rc.txt` 직접 열어 200 OK와 버전 문자열이 보이는지 확인.
+- 설치된 앱의 버전 문자열이 `-rc` 접미사를 포함하는지 확인. stable 앱은 `latest.txt`만 본다.
+- 파일에 BOM이나 쓰레기 문자가 없는지 (`cat -A /tmp/rc.txt`로 확인).
+- View → Developer Tools for Application Wrapper → Console에서 "UpdateNotifier" 로그 확인.
+
+---
+
+## PART A 완료 체크리스트
+
+아래 8개가 모두 체크되면 정식 릴리즈 + 자동 업데이트가 완전히 작동하는 상태다.
+
+- [ ] STEP 2: `releases.okrbest.com` S3 버킷 생성됨
+- [ ] STEP 3: GitHub OIDC provider가 AWS에 등록됨
+- [ ] STEP 4: IAM Role `OKRBestDesktopRelease` 생성, Trust Policy에 `refs/tags/v*` + `refs/heads/master` 조건 포함
+- [ ] STEP 5: GitHub Secrets 2개 (`OKRBEST_DESKTOP_RELEASE_AWS_ROLE_TO_ASSUME`, `OKRBEST_DESKTOP_RELEASE_BUCKET`) 등록
+- [ ] STEP 6: CloudFront + ACM + Route 53 연결, `https://releases.okrbest.com/desktop/` 접근 가능
+- [ ] STEP 7: 실제 RC 태그로 워크플로 실행 성공, S3에 아티팩트 업로드 확인
+- [ ] STEP 8: 앱에서 가짜 버전으로 업데이트 알림 확인 후 원상복구
+- [ ] `DISTRIBUTION_ID`와 IAM 정책에 CloudFront invalidation 권한 추가 (6-6)
+
+**여기까지 완료되면 PART A는 끝이다.** PART B·C는 Nightly 또는 E2E를 돌릴 필요가 있을 때만 진행한다.
+
+---
+
+# PART B — Nightly / Rainforest QA 빌드 (선택)
+
+Rainforest QA나 내부 테스터가 매일 최신 develop 빌드를 **고정된 URL**에서 받아갈 수 있게 하는 경로다. PART A와 **완전히 독립**되어 있다.
+
+- STEP B1: Daily 버킷 만들기 (이름 고정)
+- STEP B2: 전용 IAM User + Access Key 발급
+- STEP B3: IAM Policy 생성
+- STEP B4: GitHub Secrets 등록
+- STEP B5: 수동 실행으로 검증
+
+소요 시간: 약 30분.
+
+---
+
+## STEP B1. Daily 버킷 만들기
+
+### B1-1. 할 일
+
+버킷 이름이 [nightly-rainforest.yml:173](../.github/workflows/nightly-rainforest.yml#L173)에 **하드코딩**되어 있으므로 반드시 아래 이름을 써야 한다.
+
+AWS Console → **S3** → **Create bucket**.
+
+| 항목 | 입력값 |
 |---|---|
-| Bucket name | `okrbest-desktop-daily-builds` (고정) |
-| AWS Region | `us-east-1` ([nightly-rainforest.yml:143](../.github/workflows/nightly-rainforest.yml#L143) 고정) |
-| Object Ownership | **ACLs enabled (Bucket owner preferred)** — `--acl public-read`를 쓰기 때문에 ACL이 활성화되어 있어야 함 |
-| Block Public Access | `Block public access via bucket policy and ACLs`의 ACL 관련 두 옵션 OFF |
-| Bucket Versioning | Disabled |
+| Bucket name | `okrbest-desktop-daily-builds` (**고정**) |
+| AWS Region | **`us-east-1`** (고정) |
+| Object Ownership | **ACLs enabled** → **Bucket owner preferred** (PART A와 다름 — 워크플로가 `--acl public-read`를 씀) |
+| Block Public Access | 다음 2개 옵션만 해제: "Block public access to buckets and objects granted through **new** access control lists (ACLs)" + "Block public access to buckets and objects granted through **any** access control lists (ACLs)" — 나머지 2개(정책 기반)는 체크 유지 |
+| "I acknowledge..." | 체크 |
+| Versioning | Disable |
 
-> ⚠️ 이 경로는 워크플로가 개별 오브젝트에 `--acl public-read`를 붙여 업로드한다. 따라서 **ACLs가 활성화된 상태(Object Ownership: Bucket owner preferred)** 여야 한다. 경로 A와 다른 점이다.
+**Create bucket**.
 
-### 3-2. IAM User 생성 + 정적 키 발급
+### B1-2. 왜 PART A와 다른가
 
-경로 B는 OIDC가 아니라 전통적인 IAM User의 액세스 키 페어를 사용한다.
+- PART A는 CloudFront OAC 뒤에 숨기므로 ACL 불필요
+- PART B는 워크플로가 개별 오브젝트를 `--acl public-read`로 업로드하므로 ACL이 켜져 있어야 함
+- 이 차이를 지키지 않으면 `AccessControlListNotSupported` 에러로 실패함
 
-IAM → **Users** → **Create user**
-1. User name: `okrbest-desktop-daily-ci`
-2. "Provide user access to AWS Management Console" **체크 해제** (프로그래밍 전용)
-3. 다음 페이지 → "Attach policies directly" → 아래 3-3에서 만들 policy를 연결
-4. 생성 완료 후 User → **Security credentials** 탭 → **Create access key**
-5. Use case: **Third-party service** 또는 **Application running outside AWS** 선택
-6. 생성된 **Access key ID**와 **Secret access key**를 복사 (Secret은 이 화면에서만 볼 수 있음)
+---
 
-### 3-3. IAM Policy — Daily 업로드용
+## STEP B2. Daily 전용 IAM User + Access Key
 
-IAM → **Policies** → **Create policy**:
+OIDC가 아닌 **정적 키**를 쓴다. 워크플로가 이렇게 생겼기 때문.
+
+### B2-1. 할 일
+
+IAM → **Users** → **Create user**.
+
+| 항목 | 입력값 |
+|---|---|
+| User name | `okrbest-desktop-daily-ci` |
+| Provide user access to the AWS Management Console | **체크 해제** (프로그래밍 전용) |
+
+**Next** → **Attach policies directly** → **Next** (정책은 다음 STEP에서 만들어 연결) → **Create user**.
+
+### B2-2. Access Key 발급
+
+방금 만든 User 클릭 → **Security credentials** 탭 → **Create access key**.
+
+| 항목 | 입력값 |
+|---|---|
+| Use case | Third-party service (또는 Application running outside AWS) |
+| "I understand..." | 체크 |
+
+**Next** → Description: `GitHub Actions - nightly rainforest` → **Create access key**.
+
+**⚠️ 이 화면에서만 Secret access key를 볼 수 있다.** 닫기 전에 두 값을 안전한 곳에 복사:
+- Access key ID (`AKIA...`)
+- Secret access key
+
+---
+
+## STEP B3. IAM Policy 생성 및 연결
+
+### B3-1. 정책 생성
+
+IAM → **Policies** → **Create policy** → JSON:
 
 ```json
 {
@@ -339,65 +529,126 @@ IAM → **Policies** → **Create policy**:
 }
 ```
 
-정책 이름: `OKRBestDesktopDailyS3Upload`
+**Next** → 이름: `OKRBestDesktopDailyS3Upload` → **Create policy**.
 
-> `s3:PutObjectAcl`이 필수다. 워크플로가 `--acl public-read`로 업로드하기 때문에 이 권한이 없으면 `AccessDenied`로 실패한다.
+> `s3:PutObjectAcl`이 반드시 있어야 한다. 없으면 `--acl public-read`가 `AccessDenied`로 실패한다.
 
-### 3-4. GitHub Secrets 등록
+### B3-2. User에 정책 연결
 
-| Secret 이름 | 값 |
-|---|---|
-| `OKRBEST_DESKTOP_DAILY_AWS_ACCESS_KEY_ID` | 3-2에서 복사한 Access key ID (`AKIA...`) |
-| `OKRBEST_DESKTOP_DAILY_AWS_SECRET_ACCESS_KEY` | 3-2에서 복사한 Secret access key |
-
-### 3-5. 검증
-
-nightly 크론은 매일 04:00 UTC에 돌지만, 수동 트리거 가능:
-
-레포 → Actions → **nightly-builds** → Run workflow
-
-성공 후:
-```bash
-aws s3 ls s3://okrbest-desktop-daily-builds/
-# 예상:
-#   macos/okrbest-desktop-daily-develop-mac-universal.dmg
-#   win/okrbest-desktop-daily-develop-win-x64.msi
-
-curl -I https://okrbest-desktop-daily-builds.s3.amazonaws.com/macos/okrbest-desktop-daily-develop-mac-universal.dmg
-# → 200 OK
-```
-
-> 파일명이 `daily-develop-`으로 시작하는 이유: [nightly-rainforest.yml:156-171](../.github/workflows/nightly-rainforest.yml#L156-L171)이 `okrbest-desktop-{version}-` 파일명을 `okrbest-desktop-daily-develop-`로 rename해 덮어쓴다. 버전이 달라도 URL은 고정이라 Rainforest가 항상 같은 주소에서 최신본을 받아갈 수 있다.
+IAM → Users → `okrbest-desktop-daily-ci` → **Permissions** 탭 → **Add permissions** → **Attach policies directly** → `OKRBestDesktopDailyS3Upload` 검색/체크 → **Next** → **Add permissions**.
 
 ---
 
-## 4. 경로 C — E2E Reports 버킷 설정 (선택, 정적 키)
+## STEP B4. GitHub Secrets 등록
 
-E2E 테스트 결과(HTML 리포트, 스크린샷, 로그)를 저장하는 경로. CI에서 E2E를 돌리지 않으면 필요 없다.
+레포 → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**. 두 개 등록.
 
-### 4-1. S3 버킷 생성 — 이름 고정
+| Secret Name | Value |
+|---|---|
+| `OKRBEST_DESKTOP_DAILY_AWS_ACCESS_KEY_ID` | B2-2에서 복사한 Access key ID |
+| `OKRBEST_DESKTOP_DAILY_AWS_SECRET_ACCESS_KEY` | B2-2에서 복사한 Secret access key |
 
-[e2e-functional-template.yml:118](../.github/workflows/e2e-functional-template.yml#L118):
-```yaml
-env:
-  AWS_S3_BUCKET: "okrbest-cypress-report"
+---
+
+## STEP B5. 수동 실행으로 검증
+
+Nightly 크론은 매일 04:00 UTC에 돌지만 즉시 검증하려면:
+
+레포 → **Actions** → **nightly-builds** → **Run workflow** → **Run workflow** 버튼.
+
+약 30~45분 후 완료되면:
+
+```bash
+aws s3 ls s3://okrbest-desktop-daily-builds/
 ```
 
-| 항목 | 값 |
+기대 출력:
+```
+                           PRE macos/
+                           PRE win/
+```
+
+```bash
+aws s3 ls s3://okrbest-desktop-daily-builds/win/
+# 예: okrbest-desktop-daily-develop-win-x64.msi
+```
+
+HTTPS로 직접 다운로드:
+```bash
+curl -I https://okrbest-desktop-daily-builds.s3.amazonaws.com/win/okrbest-desktop-daily-develop-win-x64.msi
+# HTTP/1.1 200 OK
+```
+
+파일명이 **버전 번호가 아닌 `daily-develop-`으로 고정**되는 이유: [nightly-rainforest.yml:156-171](../.github/workflows/nightly-rainforest.yml#L156-L171)이 버전명 파일을 rename해 덮어쓴다. Rainforest가 매일 같은 URL에서 최신본을 받을 수 있도록 한 설계.
+
+### 만약 실패한다면
+
+- `AccessControlListNotSupported`: 버킷 Object Ownership이 "ACLs disabled"로 돼 있음. B1-1 대로 "Bucket owner preferred"로 변경.
+- `AccessDenied (PutObjectAcl)`: 정책에 `s3:PutObjectAcl`이 없음. B3-1 재확인.
+- `InvalidAccessKeyId`: B4의 Secret 값에 앞뒤 공백이 붙었는지 확인.
+
+---
+
+## PART B 완료 체크리스트
+
+- [ ] `okrbest-desktop-daily-builds` 버킷 생성, ACLs enabled
+- [ ] IAM User `okrbest-desktop-daily-ci` 생성, Access Key 발급
+- [ ] 정책 `OKRBestDesktopDailyS3Upload` 생성 및 User에 연결
+- [ ] GitHub Secrets 2개 등록
+- [ ] 수동 워크플로 실행 성공, `daily-develop-*` 파일 HTTPS 다운로드 가능
+
+---
+
+# PART C — E2E 테스트 리포트 저장 (선택)
+
+Playwright E2E 테스트 결과(HTML 리포트, 스크린샷)를 저장하는 경로다. CI에서 E2E를 돌리지 않으면 필요 없다.
+
+- STEP C1: E2E 리포트 버킷 만들기 (이름 고정)
+- STEP C2: 전용 IAM User + Access Key
+- STEP C3: IAM Policy 생성
+- STEP C4: GitHub Secrets + 기타 E2E 환경변수 등록
+- STEP C5: E2E 워크플로 수동 실행
+
+소요 시간: 약 20분.
+
+---
+
+## STEP C1. E2E 리포트 버킷 만들기
+
+버킷 이름이 [e2e-functional-template.yml:118](../.github/workflows/e2e-functional-template.yml#L118)에 하드코딩되어 있다.
+
+AWS Console → **S3** → **Create bucket**.
+
+| 항목 | 입력값 |
 |---|---|
-| Bucket name | `okrbest-cypress-report` (고정) |
+| Bucket name | `okrbest-cypress-report` (**고정**) |
 | AWS Region | `us-east-1` |
-| Object Ownership | ACLs disabled 권장 |
-| Block Public Access | 팀 정책에 따라 결정 — 리포트 URL을 공개할지 Slack 링크로만 공유할지에 달림 |
-| Bucket Versioning | Disabled |
+| Object Ownership | ACLs disabled (Bucket owner enforced) |
+| Block Public Access | **모두 체크** (내부 공유용) |
+| Versioning | Disable |
 
-내부 팀만 접근하게 하려면 Block Public Access를 켜두고, 대신 **presigned URL**을 생성해 Slack/webhook으로 공유하도록 [e2e 스크립트](../e2e/)를 구성하는 것이 안전하다. 현재 워크플로는 단순 PUT만 하므로, 접근 방식은 팀 정책에 맡긴다.
+**Create bucket**.
 
-### 4-2. IAM User + Policy
+> 내부 팀만 볼 수 있도록 비공개로 둔다. 리포트 URL을 공유하려면 presigned URL을 생성하거나 VPN 뒤로 두는 방식을 쓴다. 공개로 돌리면 테스트 스크린샷에 계정 정보가 노출될 수 있으므로 권장하지 않는다.
 
-IAM → **Users** → Create user: `okrbest-desktop-e2e-ci`
+---
 
-Policy JSON:
+## STEP C2. E2E 전용 IAM User + Access Key
+
+PART B와 동일한 방식.
+
+IAM → **Users** → **Create user** → 이름 `okrbest-desktop-e2e-ci` → 콘솔 접속 체크 해제 → **Create user**.
+
+User → **Security credentials** → **Create access key** → Third-party service → Description `GitHub Actions - e2e reports` → **Create**.
+
+**Access key ID**와 **Secret access key** 복사.
+
+---
+
+## STEP C3. IAM Policy
+
+IAM → **Policies** → **Create policy** → JSON:
+
 ```json
 {
   "Version": "2012-10-17",
@@ -419,88 +670,120 @@ Policy JSON:
 }
 ```
 
-### 4-3. GitHub Secrets 등록
+이름: `OKRBestDesktopE2EReportUpload` → **Create policy**.
 
-| Secret 이름 | 값 |
+IAM → Users → `okrbest-desktop-e2e-ci` → Permissions → **Attach policies** → `OKRBestDesktopE2EReportUpload` 선택 → **Add**.
+
+---
+
+## STEP C4. GitHub Secrets 등록
+
+E2E는 AWS 외에도 Zephyr, 테스트 계정 등 **총 7개 시크릿**이 필요하다.
+
+레포 → **Settings** → **Secrets and variables** → **Actions** → 각각 **New repository secret**:
+
+| Secret Name | Value |
 |---|---|
-| `OKRBEST_DESKTOP_E2E_AWS_ACCESS_KEY_ID` | 새 IAM User의 Access key ID |
-| `OKRBEST_DESKTOP_E2E_AWS_SECRET_ACCESS_KEY` | Secret access key |
+| `OKRBEST_DESKTOP_E2E_AWS_ACCESS_KEY_ID` | C2에서 복사한 Access key ID |
+| `OKRBEST_DESKTOP_E2E_AWS_SECRET_ACCESS_KEY` | C2에서 복사한 Secret access key |
+| `OKRBEST_DESKTOP_E2E_USER_NAME` | E2E가 로그인할 테스트 계정 아이디 |
+| `OKRBEST_DESKTOP_E2E_USER_CREDENTIALS` | 위 계정의 비밀번호 |
+| `OKRBEST_DESKTOP_E2E_TEST_CYCLE_LINK_PREFIX` | Zephyr 테스트 사이클 URL prefix (Zephyr 미사용 시 빈 값) |
+| `OKRBEST_DESKTOP_E2E_WEBHOOK_URL` | 결과 알림 Mattermost webhook URL |
+| `OKRBEST_DESKTOP_E2E_ZEPHYR_API_KEY` | Zephyr API Key (Zephyr 미사용 시 빈 값) |
 
-이 경로의 다른 E2E 시크릿들(`OKRBEST_DESKTOP_E2E_USER_NAME` 등)은 [DEPLOYMENT_ENVIRONMENT_SETUP.md 8](DEPLOYMENT_ENVIRONMENT_SETUP.md) 참고.
+**테스트 계정 준비**: 테스트용 OKR Best 서버 인스턴스에서 E2E 전용 계정을 만들어두고 그 값을 넣는다. 프로덕션 계정을 쓰면 안 된다.
 
 ---
 
-## 5. 경로별 대조표 (요약)
+## STEP C5. E2E 워크플로 수동 실행
 
-셋업 후 누가 뭘 보는지 헷갈릴 때 이 표만 다시 보면 된다.
+레포 → **Actions** → **Electron Playwright Tests** → **Run workflow**. 입력 폼:
 
-| 속성 | A. Release | B. Daily | C. E2E |
+| 입력 | 값 |
+|---|---|
+| version_name | 테스트할 브랜치/태그 (예: `master`) |
+| instance_details | 플랫폼별 JSON 배열 (E2E 문서 참고) |
+| OKRBEST_SERVER_VERSION | 테스트 대상 서버 버전 |
+
+실행 후 완료되면:
+```bash
+aws s3 ls s3://okrbest-cypress-report/ --recursive | head
+```
+
+어떤 파일이든 업로드됐으면 성공. 실제 키 구조는 E2E 스크립트(`e2e/` 디렉토리)에서 결정한다.
+
+---
+
+## PART C 완료 체크리스트
+
+- [ ] `okrbest-cypress-report` 버킷 생성 (비공개)
+- [ ] IAM User `okrbest-desktop-e2e-ci` + Access Key
+- [ ] 정책 `OKRBestDesktopE2EReportUpload` 연결
+- [ ] GitHub Secrets 7개 모두 등록
+- [ ] E2E 워크플로 수동 실행 성공
+
+---
+
+# 부록 A. 세 경로 한눈에 보기
+
+설정 후 혼란스러울 때 이 표를 참고한다.
+
+| 속성 | PART A — Release | PART B — Daily | PART C — E2E |
 |---|---|---|---|
-| 버킷 이름 | Secret으로 설정 | `okrbest-desktop-daily-builds` (고정) | `okrbest-cypress-report` (고정) |
-| 인증 | OIDC (IAM Role) | 정적 키 (IAM User) | 정적 키 (IAM User) |
-| ACL 업로드 | `--cache-control "no-cache"`만 | `--acl public-read --cache-control "no-cache"` | 스크립트 의존 |
-| Block Public Access | OFF (또는 CloudFront 시 ON) | ACL 옵션만 OFF | 선택 |
-| IAM 권한 | `s3:PutObject, PutObjectAcl, GetObject, ListBucket` | `s3:PutObject, PutObjectAcl, ListBucket` | `s3:PutObject, GetObject, ListBucket` |
-| GitHub Secret (버킷) | `OKRBEST_DESKTOP_RELEASE_BUCKET` | 없음 (하드코딩) | 없음 (하드코딩) |
-| GitHub Secret (인증) | `OKRBEST_DESKTOP_RELEASE_AWS_ROLE_TO_ASSUME` | `OKRBEST_DESKTOP_DAILY_AWS_ACCESS_KEY_ID/_SECRET_ACCESS_KEY` | `OKRBEST_DESKTOP_E2E_AWS_ACCESS_KEY_ID/_SECRET_ACCESS_KEY` |
-| 운영 필수성 | **필수** (자동 업데이트) | 선택 (Rainforest 사용 시) | 선택 (E2E 사용 시) |
-| 도메인/CDN | `releases.okrbest.com` 연결 권장 | 직접 S3 URL 사용 | 내부 공유 |
+| 버킷 이름 | Secret 지정 (`releases.okrbest.com`) | `okrbest-desktop-daily-builds` (고정) | `okrbest-cypress-report` (고정) |
+| 인증 방식 | OIDC (IAM Role) | 정적 키 (IAM User) | 정적 키 (IAM User) |
+| Object Ownership | ACLs disabled | **ACLs enabled** | ACLs disabled |
+| Public 접근 | CloudFront OAC 경유 (버킷 자체는 비공개) | 버킷 ACL 기반 공개 | 완전 비공개 |
+| IAM 권한 | `PutObject, PutObjectAcl, GetObject, ListBucket` | `PutObject, PutObjectAcl, ListBucket` | `PutObject, GetObject, ListBucket` |
+| 도메인 | `releases.okrbest.com` (CloudFront) | S3 직접 URL | 내부 공유 |
+| 운영 필수성 | **필수** | 선택 | 선택 |
 
 ---
 
-## 6. 트러블슈팅
+# 부록 B. 이 프로젝트의 자동 업데이트 구조 (배경)
 
-### AccessDenied — Release 업로드 실패
-- **Trust policy `sub` 조건**이 실제 태그/브랜치와 일치하는지 확인. 예: `refs/tags/v*`로만 제한했는데 nightly `workflow_dispatch`에서 master 브랜치로 실행하면 실패. 2-8의 `master` 브랜치 조건 추가 여부 점검.
-- Role policy Resource ARN에서 `/*`가 빠지지 않았는지 확인.
-- [release.yaml:185-187](../.github/workflows/release.yaml#L185-L187) job-level `permissions: { id-token: write, contents: read }` 블록이 있는지 확인.
+PART A를 따라 하는 동안 의아했던 점이 있다면 여기서 배경을 확인한다.
 
-### AccessDenied — Daily 업로드 실패
-- **`s3:PutObjectAcl`** 권한이 policy에 있는지 확인. 이게 없으면 `--acl public-read`가 실패한다.
-- 버킷의 Object Ownership이 "ACLs disabled"면 `--acl` 플래그가 거부된다. **ACLs enabled**로 바꿔야 한다.
-- Block Public Access의 "Block public access to buckets and objects granted through new access control lists (ACLs)" 옵션이 켜져 있으면 ACL 부여가 거부된다.
+### 왜 `electron-updater`가 아닌가
 
-### 앱이 "No update available"만 계속 표시
-- 브라우저에서 `https://releases.okrbest.com/desktop/latest.txt` 직접 열어본다. 200 OK + 버전 문자열이 나와야 함.
-- Content-Type이 `text/plain`인지. 바이너리로 업로드됐다면 `--content-type text/plain` 명시.
-- 파일에 BOM이나 쓰레기 문자가 없는지 — `semver.gt`가 실패한다.
-- CloudFront를 쓴다면 invalidation을 잊지 말 것.
-- 사용자가 실행 중인 채널과 실제 업로드된 파일명이 맞는지 (`5.12.0-rc.1` 사용자는 `rc.txt`만 읽는다).
+이 프로젝트는 일반적인 Electron 앱과 달리 **커스텀 HTTP + plain text 방식**을 쓴다:
 
-### 사용자 버전이 "올라가지 않는" 것처럼 보임
-- 기억할 것: **이 프로젝트의 auto-update는 알림만 띄우고 자동 설치하지 않는다.** 사용자가 직접 새 설치본을 받아야 한다. 의도된 동작.
+1. 앱이 1시간마다 [src/main/updateNotifier.ts:149](../src/main/updateNotifier.ts#L149)에서 `https://releases.okrbest.com/desktop/latest.txt`에 GET 요청
+2. 서버는 버전 문자열(예: `5.12.0`) 한 줄을 text로 응답
+3. `semver.gt(remoteVersion, currentVersion)`로 비교 ([updateNotifier.ts:168](../src/main/updateNotifier.ts#L168))
+4. 새 버전이 있으면 **알림만 표시**. 다운로드·설치는 사용자가 수동으로 수행
 
-### OIDC 토큰 실패 — "Not authorized to perform sts:AssumeRoleWithWebIdentity"
-- job-level `permissions: id-token: write` 확인.
-- AWS의 Identity provider thumbprint가 자동으로 갱신됐는지. GitHub이 인증서를 바꿀 때 가끔 수동 재등록이 필요.
+워크플로가 업로드하는 `latest.yml`, `latest-mac.yml` 등의 파일은 **현재 런타임이 읽지 않는다** — 향후 `electron-updater` 마이그레이션을 위한 흔적이다.
 
-### Daily 빌드가 "예전 파일"만 보여줌
-- [nightly-rainforest.yml:156-171](../.github/workflows/nightly-rainforest.yml#L156-L171)의 rename 로직이 성공했는지 로그 확인. 실패하면 `{version}/` 폴더가 지워지지 않고 누적된다.
-- 버킷 Versioning이 켜져 있다면 이전 버전 오브젝트가 숨어 있을 수 있다. Disabled 권장.
+### 왜 업데이트 URL이 빌드 타임 하드코딩인가
 
----
+[buildConfig.ts:39](../src/common/config/buildConfig.ts#L39)의 `updateNotificationURL`은 webpack 빌드 시점에 고정된다. 환경변수로 바꿀 수 없다. 자체 인프라에서 쓰려면 소스 수정 후 재빌드 필요.
 
-## 7. 보안 강화 (선택)
+### 채널별 파일명 규칙
 
-- **경로 A에 CloudFront OAC 적용** (2-10 옵션 B) → 버킷을 다시 Block Public Access로. 퍼블릭 버킷 유지는 버킷 takeover 시도 등 불필요한 트래픽을 유발한다.
-- **경로 B의 정적 키 주기적 rotation**: IAM User → Security credentials → Make inactive → Create new → 새 키로 Secret 업데이트 → 이전 키 삭제. 90일 주기 권장.
-- **경로 B를 OIDC로 마이그레이션**: 가장 근본적인 보안 개선. [nightly-rainforest.yml:140-145](../.github/workflows/nightly-rainforest.yml#L140-L145)를 경로 A와 같은 OIDC 방식으로 바꾸면 정적 키를 없앨 수 있다. Trust policy의 `sub` 조건에 `repo:okrbest/okrbest-desktop:ref:refs/heads/master`가 포함되어야 한다 (nightly는 master 기반). 단, 이는 워크플로 수정이 필요한 별도 리팩터링 작업이다.
-- **IAM Role 최소 권한 리뷰**: 각 경로에서 `GetObject`는 보통 업로드에 불필요. 최소화하려면 `PutObject` + `ListBucket`만 남겨도 된다.
-- **S3 서버 액세스 로깅 또는 CloudTrail 데이터 이벤트** 활성화 → 누가 언제 `latest.txt`를 갱신했는지 감사 기록 확보.
+앱이 어떤 파일을 보는지는 현재 실행 중인 버전의 suffix에 따라 결정된다 ([updateNotifier.ts:143-146](../src/main/updateNotifier.ts#L143-L146)):
 
----
+| 실행 중인 앱 버전 | 참조하는 파일 |
+|---|---|
+| `5.12.0` | `latest.txt` |
+| `5.12.0-rc.1` | `rc.txt` |
+| `5.12.0-nightly.20260413` | `nightly.txt` |
+| `5.12.0-mas.1` | `mas.txt` |
 
-## 8. 파일 레이아웃 (최종 상태)
+**stable 사용자는 rc 채널을 볼 수 없다.** 채널 간 이동은 사용자가 수동 재설치로만 가능.
 
-### 경로 A: Release 버킷
+### S3 버킷 최종 레이아웃
+
+PART A 완료 후 버킷 구조:
 
 ```
-YOUR-RELEASE-BUCKET/
+releases.okrbest.com/
 └── desktop/
     ├── latest.txt              ← stable 채널 포인터 (예: "5.12.0")
     ├── rc.txt                  ← RC 채널 포인터
-    ├── nightly.txt             ← nightly 채널 포인터
-    ├── mas.txt                 ← MAS 채널 포인터
+    ├── nightly.txt             ← nightly 포인터
+    ├── mas.txt                 ← MAS 포인터
     ├── latest.yml              ← electron-builder 메타 (현재 미사용)
     ├── latest-mac.yml
     ├── latest-linux.yml
@@ -512,34 +795,23 @@ YOUR-RELEASE-BUCKET/
         └── ...
 ```
 
-### 경로 B: Daily 버킷
+---
 
-```
-okrbest-desktop-daily-builds/
-├── macos/
-│   ├── okrbest-desktop-daily-develop-mac-universal.dmg
-│   └── okrbest-desktop-daily-develop-mac-arm64.dmg
-└── win/
-    ├── okrbest-desktop-daily-develop-win-x64.msi
-    └── okrbest-desktop-daily-develop-win-arm64.msi
-```
+# 부록 C. 보안 강화 권장 사항
 
-파일명이 버전과 독립적이므로 매일 같은 URL에서 "최신 develop"을 받을 수 있다.
+당장 설정해야 하는 건 아니지만 운영에 들어가면 적용하는 것을 권장한다.
 
-### 경로 C: E2E Reports 버킷
-
-```
-okrbest-cypress-report/
-└── (E2E 스크립트가 정의한 키 구조, 보통 {branch}/{sha}/ 또는 {test-cycle}/)
-```
+- **정적 키 rotation**: PART B·C의 IAM User 액세스 키를 90일마다 교체. IAM → User → Security credentials → Make inactive → Create new → Secret 업데이트 → 이전 키 삭제.
+- **PART B·C를 OIDC로 마이그레이션**: 워크플로 수정(`aws-actions/configure-aws-credentials`에 `role-to-assume`)이 필요하지만 정적 키를 완전히 제거할 수 있다. Trust policy에 `repo:okrbest/okrbest-desktop:ref:refs/heads/master`가 포함되어야 한다.
+- **S3 서버 액세스 로깅 또는 CloudTrail 데이터 이벤트** 활성화 → 누가 언제 `latest.txt`를 갱신했는지 감사.
+- **IAM Role 최소 권한 재검토**: 이 가이드의 정책은 여유를 두고 작성됐다. `GetObject`나 `ListBucket`이 실제로 필요한지 운영 로그 기반으로 점검.
 
 ---
 
-## 참고 자료
+# 부록 D. 참고 자료
 
 - [Configuring OpenID Connect in Amazon Web Services — GitHub Docs](https://docs.github.com/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services)
 - [aws-actions/configure-aws-credentials — GitHub](https://github.com/aws-actions/configure-aws-credentials)
 - [Use IAM roles to connect GitHub Actions to actions in AWS — AWS Security Blog](https://aws.amazon.com/blogs/security/use-iam-roles-to-connect-github-actions-to-actions-in-aws/)
-- [Setting permissions for website access — AWS S3 Documentation](https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteAccessPermissionsReqd.html)
 - [Examples of Amazon S3 bucket policies — AWS Documentation](https://docs.aws.amazon.com/AmazonS3/latest/userguide/example-bucket-policies.html)
 - [Controlling object ownership of objects uploaded to your bucket — AWS S3 Documentation](https://docs.aws.amazon.com/AmazonS3/latest/userguide/about-object-ownership.html)
