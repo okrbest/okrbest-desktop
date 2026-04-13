@@ -112,6 +112,21 @@ Flatpak 빌드 환경변수(선택, 기본값 있음):
 
 ---
 
+## 6-1. Repository Variables (Git Identity)
+
+`run-release-script` 워크플로가 [scripts/release.sh](../scripts/release.sh)를 실행하며 커밋을 생성할 때 사용하는 Git 작성자 정보다. **Secrets가 아니라 Repository Variables**로 등록한다 — GitHub에서 Settings → Secrets and variables → Actions → **Variables** 탭 → New repository variable.
+
+| Variable 이름 | 용도 |
+|---|---|
+| `UNIFIED_CI_USERNAME` | `git config user.name` 값 (예: `okrbest-ci`) |
+| `UNIFIED_CI_EMAIL` | `git config user.email` 값 (예: `ci@okrbest.com`) |
+
+소비 워크플로: [run-release-script.yml:50-51](../.github/workflows/run-release-script.yml#L50-L51)
+
+설정하지 않으면 해당 워크플로의 Git commit이 빈 저자 정보로 생성되거나 실패한다.
+
+---
+
 ## 7. 빌드 타임 컴파일 상수 (webpack DefinePlugin)
 
 [webpack.config.base.js](../webpack.config.base.js)에서 환경변수 → 전역 상수로 주입한다.
@@ -133,8 +148,10 @@ Flatpak 빌드 환경변수(선택, 기본값 있음):
 
 | GitHub Secret | 용도 |
 |---|---|
-| `OKRBEST_DESKTOP_E2E_USER_NAME` / `_CREDENTIALS` | 테스트 계정 |
-| `OKRBEST_DESKTOP_E2E_AWS_ACCESS_KEY_ID` / `_SECRET_ACCESS_KEY` | 리포트 업로드용 (정적 키) |
+| `OKRBEST_DESKTOP_E2E_USER_NAME` | 테스트 계정 아이디 |
+| `OKRBEST_DESKTOP_E2E_USER_CREDENTIALS` | 테스트 계정 비밀번호 |
+| `OKRBEST_DESKTOP_E2E_AWS_ACCESS_KEY_ID` | 리포트 업로드용 정적 키 (Access Key ID) |
+| `OKRBEST_DESKTOP_E2E_AWS_SECRET_ACCESS_KEY` | 리포트 업로드용 정적 키 (Secret Access Key) |
 | `OKRBEST_DESKTOP_E2E_TEST_CYCLE_LINK_PREFIX` | 테스트 사이클 URL prefix |
 | `OKRBEST_DESKTOP_E2E_WEBHOOK_URL` | 결과 알림 |
 | `OKRBEST_DESKTOP_E2E_ZEPHYR_API_KEY` | Zephyr 테스트 관리 연동 |
@@ -167,8 +184,9 @@ Flatpak 빌드 환경변수(선택, 기본값 있음):
    - Nightly용: 별도 IAM 사용자 + 정적 Access/Secret Key + `okrbest-desktop-daily-builds` 버킷 (버킷명 하드코딩)
 7. GitHub PAT 발급 (`repo` 권한) → `OKRBEST_DESKTOP_BUILD_GH_TOKEN`
 8. Mattermost 알림 채널 webhook URL 2개 (release / nightly)
-9. (선택) Sentry 프로젝트 생성 → DSN 확보
-10. 위 모든 시크릿을 GitHub repository Settings → Secrets and variables → Actions에 등록
+9. Repository Variables 2개 등록: `UNIFIED_CI_USERNAME`, `UNIFIED_CI_EMAIL` (run-release-script 워크플로의 git identity, §6-1 참고)
+10. (선택) Sentry 프로젝트 생성 → DSN 확보
+11. 위 모든 시크릿과 variables를 GitHub repository Settings → Secrets and variables → Actions에 등록 (Secrets 탭과 Variables 탭을 구분)
 
 ---
 
