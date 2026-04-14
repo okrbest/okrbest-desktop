@@ -1,7 +1,5 @@
 // Copyright (c) 2016-present Mattermost, Inc. All Rights Reserved.
-// Copyright (c) 2024-present OKR Best. All Rights Reserved.
 // See LICENSE.txt for license information.
-// Modified for OKR Best project.
 
 import type {WebContents, Event} from 'electron';
 import {BrowserWindow, dialog, shell} from 'electron';
@@ -117,6 +115,14 @@ export class WebContentsEventManager {
                 return;
             }
 
+            if (isCustomProtocol(parsedURL)) {
+                allowProtocolDialog.handleDialogEvent(url).catch((err) => {
+                    this.log(webContentsId).warn('Error handling custom protocol dialog', err);
+                });
+                event.preventDefault();
+                return;
+            }
+
             this.log(webContentsId).info('Prevented desktop from navigating to external URL');
             event.preventDefault();
         };
@@ -162,7 +168,9 @@ export class WebContentsEventManager {
 
             // Check for other custom protocols
             if (isCustomProtocol(parsedURL)) {
-                allowProtocolDialog.handleDialogEvent(parsedURL);
+                allowProtocolDialog.handleDialogEvent(details.url).catch((err) => {
+                    this.log(webContentsId).warn('Error handling custom protocol dialog', err);
+                });
                 return {action: 'deny'};
             }
 

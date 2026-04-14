@@ -10,6 +10,7 @@ import {dialog, shell} from 'electron';
 
 import buildConfig from 'common/config/buildConfig';
 import {Logger} from 'common/log';
+import {parseURL} from 'common/utils/url';
 import * as Validator from 'common/Validator';
 import {localizeMessage} from 'main/i18nManager';
 
@@ -44,13 +45,16 @@ export class AllowProtocolDialog {
         }
     };
 
-    handleDialogEvent = async (url: URL) => {
-        const protocol = url.protocol;
-        const serializedURL = url.toString();
+    handleDialogEvent = async (url: string) => {
+        const parsedURL = parseURL(url);
+        if (!parsedURL) {
+            return;
+        }
+        const protocol = parsedURL.protocol;
 
         try {
             if (this.allowedProtocols.indexOf(protocol) !== -1) {
-                await shell.openExternal(serializedURL);
+                await shell.openExternal(url);
                 return;
             }
             const mainWindow = MainWindow.get();
@@ -60,7 +64,7 @@ export class AllowProtocolDialog {
             const {response} = await dialog.showMessageBox(mainWindow, {
                 title: localizeMessage('main.allowProtocolDialog.title', 'Non http(s) protocol'),
                 message: localizeMessage('main.allowProtocolDialog.message', '{protocol} link requires an external application.', {protocol}),
-                detail: localizeMessage('main.allowProtocolDialog.detail', 'The requested link is {URL}. Do you want to continue?', {URL: serializedURL}),
+                detail: localizeMessage('main.allowProtocolDialog.detail', 'The requested link is {URL}. Do you want to continue?', {URL: url}),
                 defaultId: 2,
                 type: 'warning',
                 buttons: [
@@ -81,11 +85,11 @@ export class AllowProtocolDialog {
                     }
                 }
                 fs.writeFile(allowedProtocolFile, JSON.stringify(this.allowedProtocols), handleError);
-                await shell.openExternal(serializedURL);
+                await shell.openExternal(url);
                 break;
             }
             case 0:
-                await shell.openExternal(serializedURL);
+                await shell.openExternal(url);
                 break;
             }
         } catch (error) {
