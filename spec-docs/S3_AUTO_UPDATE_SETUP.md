@@ -10,7 +10,7 @@
 | **B** | Nightly / Rainforest QA 빌드 배포 | 선택 | ~30분 |
 | **C** | E2E 테스트 리포트 저장 | 선택 | ~20분 |
 
-> **전제**: AWS Console 로그인 가능, GitHub 레포 관리자 권한, Route 53에 등록된 도메인 1개 (예: `okrbest.com`), 로컬에 AWS CLI 설치.
+> **전제**: AWS Console 로그인 가능, GitHub 레포 관리자 권한, Route 53에서 관리 중인 `okrbest.com` 도메인 (앱 소스에 하드코딩된 업데이트 도메인 — 자세한 내용은 STEP 1 참조), 로컬에 AWS CLI 설치.
 
 ---
 
@@ -35,16 +35,16 @@
 
 - [ ] AWS 계정 (루트 아닌 IAM 사용자, 콘솔 접속 가능)
 - [ ] 로컬 `aws` CLI 설치 및 `aws configure`로 자격 증명 설정 완료
-- [ ] Route 53에 등록된 도메인 (이 가이드는 `okrbest.com` 예시. 실제 값으로 바꿔 읽을 것)
+- [ ] Route 53에서 관리 중인 `okrbest.com` 도메인 (이 프로젝트의 실제 지정 도메인)
 - [ ] 이 레포(`okrbest/okrbest-desktop`)의 GitHub 관리자 권한
-- [ ] 앱 소스의 [src/common/config/buildConfig.ts:39](../src/common/config/buildConfig.ts#L39)가 가리키는 업데이트 URL이 무엇인지 확인
+- [ ] 앱 소스의 [src/common/config/buildConfig.ts:39](../src/common/config/buildConfig.ts#L39)에 하드코딩된 업데이트 URL 확인
 
-마지막 항목이 중요하다. 기본값은 다음과 같다:
+마지막 항목이 중요하다. 현재 값은 다음과 같다:
 ```ts
 updateNotificationURL: 'https://releases.okrbest.com/desktop',
 ```
 
-**이 URL은 빌드 타임에 하드코딩된다.** 즉 이 가이드 전체가 사용할 도메인은 위 값에서 이미 정해져 있다 — 이 예시에서는 `releases.okrbest.com`. 다른 도메인을 쓰려면 먼저 `buildConfig.ts`를 수정하고 앱을 재빌드해야 한다. **바꿀 일이 없다면 이대로 진행하고, 아래 가이드의 `releases.okrbest.com`을 그대로 사용한다.**
+**이 URL은 빌드 타임에 하드코딩된 이 프로젝트의 지정 도메인이다.** 이 가이드 전체가 사용할 도메인은 `releases.okrbest.com`으로 코드에서 이미 정해져 있다 — 단순 예시가 아니라 앱 바이너리가 실제로 접근하는 주소다. 따라서 **S3 버킷 이름, CloudFront Alternate domain, Route 53 레코드가 모두 `releases.okrbest.com`과 정확히 일치해야** 자동 업데이트가 동작한다. 다른 도메인을 쓰려면 먼저 `buildConfig.ts`를 수정하고 앱을 재빌드한 뒤, 아래 가이드의 모든 `releases.okrbest.com`을 해당 값으로 바꿔 적용해야 한다.
 
 ---
 
