@@ -50,32 +50,60 @@ updateNotificationURL: 'https://releases.okrbest.com/desktop',
 
 ## STEP 2. S3 버킷 만들기
 
+> **📍 리전 정책**: 이 가이드의 모든 AWS 리소스는 `ap-northeast-2`(Seoul)에 생성한다. 단 **STEP 6-1의 ACM 인증서 한 건만** AWS 서비스 제약으로 `us-east-1`에서 발급해야 한다(그 이유는 6-1에서 설명). 그 외 모든 단계에서 우상단 리전이 **`아시아 태평양(서울) ap-northeast-2`** 로 유지되고 있는지 매 화면마다 확인할 것. 기본 리전이 이미 서울인 계정이라면 자동으로 맞춰져 있다.
+
 ### 2-1. 할 일
 
-AWS Console → **S3** → **Create bucket**. 아래 값을 그대로 입력한다.
+AWS Console → **S3** → **Create bucket**. AWS Console이 위에서 아래로 보여주는 순서 그대로 아래 값을 입력한다.
 
-| 항목 | 입력값 |
-|---|---|
-| Bucket name | `releases.okrbest.com` (도메인과 **정확히 같은 이름**) |
-| AWS Region | **US East (N. Virginia) `us-east-1`** (변경 금지 — 워크플로 고정) |
-| Object Ownership | ACLs disabled (Bucket owner enforced) |
-| Block Public Access | **모든 4개 옵션 체크 해제** |
-| "I acknowledge..." 경고 | 체크 |
-| Bucket Versioning | Disable |
-| Default encryption | Amazon S3 managed keys (SSE-S3) — 기본값 유지 |
-| Object Lock | Disable |
+| # | 항목 | 입력값 |
+|---|---|---|
+| 1 | **Bucket type** (버킷 유형) | **General purpose** (글로벌 네임스페이스) |
+| 2 | **Bucket name** | `releases.okrbest.com` (도메인과 **정확히 같은 이름**) |
+| 3 | **Copy settings from existing bucket** | 사용하지 않음 (공란 유지) |
+| 4 | **AWS Region** | **Asia Pacific (Seoul) `ap-northeast-2`** (변경 금지 — 워크플로 고정) |
+| 5 | **Object Ownership** | ACLs disabled (Bucket owner enforced) |
+| 6 | **Block Public Access** | **모든 4개 옵션 체크 해제** (잠시만 공개) |
+| 7 | "I acknowledge..." 경고 | 체크 |
+| 8 | **Bucket Versioning** | Disable |
+| 9 | **Tags** (선택) | `Project=okrbest-desktop` 권장 (비용 할당용) |
+| 10 | **Default encryption** | Amazon S3 managed keys (SSE-S3), Bucket Key **Enable** (기본값) |
+| 11 | **Object Lock** | Disable |
 
 **Create bucket** 클릭.
 
 > ⚠️ Block Public Access를 지금 해제하는 이유는 STEP 6에서 CloudFront OAC로 버킷을 다시 비공개로 되돌릴 것이기 때문이다. 잠시만 공개로 둔다.
 
-### 2-2. 검증
+### 2-2. 각 설정의 의미
+
+표를 그대로 따라 하면 작동하지만, AWS Console에서 낯선 항목을 만났을 때 당황하지 않도록 각 설정이 무슨 의미인지 짧게 정리한다.
+
+- **Bucket type — General purpose vs Directory**: AWS는 2024년부터 버킷 유형을 둘로 나눴다.
+  - **General purpose (글로벌 네임스페이스)**: 우리가 아는 기존 S3. 버킷 이름이 전역 고유하고 여러 AZ에 복제된다. 정적 호스팅·CloudFront OAC·`s3://` 표준 경로 모두 이 유형에서만 동작한다. **반드시 이 쪽을 선택한다.**
+  - **Directory (계정 리전 네임스페이스, S3 Express One Zone)**: 단일 AZ 저지연 워크로드용. 이름이 `bucket--usw2-az1--x-s3` 같은 특수 형식이고, CloudFront·정적 호스팅과 호환되지 않는다. 릴리즈 배포에는 쓸 수 없다.
+- **Bucket name**: 전역 고유해야 한다. 도메인 `releases.okrbest.com`과 **정확히 같은 이름**을 쓰는 이유는 CloudFront Alternate domain + Route 53 레코드와 매칭해 운영자가 혼동하지 않게 하려는 것이다. 다른 이름을 써도 기술적으로는 동작한다.
+- **Copy settings from existing bucket**: 기존 버킷의 설정을 복사해 오는 편의 옵션. 초보자는 **반드시 공란으로 둔다** — 실수로 다른 프로젝트의 정책/암호화 설정이 끌려오면 디버깅이 어렵다.
+- **AWS Region — 왜 서울인가**: 주 사용자가 한국이므로 `ap-northeast-2`로 고정한다. 계정의 기본 리전도 서울이라 특별히 바꿀 필요가 없다. STEP 6-1의 ACM 인증서만 CloudFront 제약 때문에 `us-east-1`에서 발급하는 단 하나의 예외가 있다.
+- **Object Ownership — ACLs disabled**: PART A는 CloudFront OAC(Origin Access Control)만 버킷에 접근하므로 객체별 ACL이 필요 없다. "Bucket owner enforced"가 2023년 이후 신규 버킷의 AWS 권장 기본값이다. (PART B는 워크플로가 `--acl public-read`를 쓰기 때문에 예외적으로 ACL을 켠다 — STEP B1 참고.)
+- **Block Public Access — 4개 옵션 구성**: AWS는 공개 경로를 두 층(ACL, 정책)으로 나눠 각각 "신규/모두" 두 옵션으로 총 4개를 둔다.
+  1. Block public ACLs (신규 ACL 차단)
+  2. Ignore public ACLs (기존 ACL 무시)
+  3. Block public bucket policies (신규 정책 차단)
+  4. Restrict public access via policies (기존 정책 제한)
+
+  STEP 2에서는 CloudFront가 OAC 정책으로 접근하도록 허용하기 위해 **4개 모두 잠시 해제**하고, STEP 6-3에서 다시 전부 켠다.
+- **Bucket Versioning**: 릴리즈 아티팩트는 불변(immutable) 버전 키로 업로드되므로 S3 버전 관리가 불필요하다. 켜면 저장 비용만 늘어난다.
+- **Tags**: 비용·리소스 추적용 라벨. 필수 아님. 조직 차원의 청구 태그가 있다면 함께 붙인다.
+- **Default encryption — SSE-S3 + Bucket Key**: AWS가 관리하는 키로 저장 시 자동 암호화한다. Bucket Key는 KMS 호출 비용을 대폭 줄이는 캐시 계층이며 SSE-S3에서도 켜두면 이점만 있다. 2023년 이후 기본값이라 그대로 두면 된다.
+- **Object Lock**: WORM(Write Once Read Many) 규정 준수용. 이 프로젝트는 법적 보관 요건이 없어 Disable 유지.
+
+### 2-3. 검증
 
 터미널에서:
 ```bash
 aws s3 ls s3://releases.okrbest.com/
 ```
-에러 없이 빈 줄(또는 아무 출력 없음)이 나오면 성공. `NoSuchBucket` 에러가 나면 버킷 이름을 다시 확인한다.
+에러 없이 빈 줄(또는 아무 출력 없음)이 나오면 성공. `NoSuchBucket` 에러가 나면 버킷 이름을 다시 확인한다. `IllegalLocationConstraintException`이 나면 로컬 `aws configure`의 기본 리전이 `ap-northeast-2`로 설정돼 있는지 확인한다.
 
 ---
 
@@ -211,11 +239,26 @@ Secrets 목록에 위 두 이름이 보이면 된다. 값은 마스킹되어 확
 
 6 STEP 중 가장 복잡하지만 한 번만 하면 된다.
 
-### 6-1. ACM 인증서 발급 (반드시 us-east-1)
+### 6-1. ACM 인증서 발급 (⚠️ 이 단계만 us-east-1)
 
-AWS Console → 우상단 리전을 **US East (N. Virginia) `us-east-1`** 로 변경 (CloudFront는 반드시 이 리전의 인증서만 사용할 수 있음).
+> **❗ 중요 — 이 가이드에서 유일한 리전 예외**
+>
+> 이 프로젝트의 모든 버킷·워크플로는 `ap-northeast-2`(Seoul)에 있지만, **ACM 인증서 한 건만은 반드시 `us-east-1`에서 발급**해야 한다.
+>
+> 이유: CloudFront는 리전 개념이 없는 글로벌 엣지 서비스이고, 대체 도메인(CNAME/Alternate domain name)에 연결할 ACM 인증서를 **오직 us-east-1 리전에서만** 읽어오기 때문이다. 다른 리전에서 발급한 인증서는 CloudFront distribution의 "Custom SSL certificate" 드롭다운에 아예 나타나지 않는다.
+>
+> **이 단계에서만 리전을 바꾸고, 끝나면 반드시 서울로 되돌린다.**
 
-→ **Certificate Manager (ACM)** → **Request certificate** → **Request a public certificate** → **Next**
+#### 리전을 us-east-1로 전환
+
+1. AWS Console 우상단 리전 드롭다운 클릭 (현재 `아시아 태평양(서울) ap-northeast-2`)
+2. **미국 동부(버지니아 북부) `us-east-1`** 선택
+3. 브라우저 주소창이 `...console.aws.amazon.com/acm/home?region=us-east-1...` 로 바뀌었는지 확인 — URL의 `region=` 파라미터가 바뀌지 않으면 좌측 메뉴 → **Certificate Manager**를 다시 눌러 새 리전으로 진입한다
+4. 우상단에도 **N. Virginia**로 표시되는지 재확인
+
+#### 인증서 요청
+
+**Certificate Manager (ACM)** → **Request certificate** → **Request a public certificate** → **Next**
 
 | 항목 | 입력값 |
 |---|---|
@@ -227,13 +270,19 @@ AWS Console → 우상단 리전을 **US East (N. Virginia) `us-east-1`** 로 �
 
 생성된 인증서를 클릭 → "Create records in Route 53" 버튼 → **Create records**. Route 53이 자동으로 CNAME 검증 레코드를 추가한다. 5~10분 기다리면 Status가 **Issued**로 바뀐다.
 
+#### 🔙 발급 후 반드시 서울 리전으로 되돌리기
+
+인증서가 **Issued** 상태가 되었으면 **우상단 리전을 다시 `아시아 태평양(서울) ap-northeast-2`로 되돌린다.** 되돌리지 않으면 STEP 6-2 이후에 버지니아 리전에서 엉뚱한 CloudFront distribution/S3 버킷 작업을 하게 될 수 있다.
+
+CloudFront 생성(6-2) 자체는 리전 무관(글로벌 서비스)이라 어느 리전에서도 진행할 수 있지만, 혼란을 막기 위해 이 가이드 전체는 **서울 리전에서 작업한다**는 규칙을 유지한다.
+
 ### 6-2. CloudFront Distribution 생성
 
 AWS Console → **CloudFront** → **Create distribution**.
 
 | 항목 | 입력값 |
 |---|---|
-| Origin domain | `releases.okrbest.com.s3.us-east-1.amazonaws.com` (드롭다운에서 S3 버킷 선택 — **website endpoint 아님**, REST endpoint) |
+| Origin domain | `releases.okrbest.com.s3.ap-northeast-2.amazonaws.com` (드롭다운에서 S3 버킷 선택 — **website endpoint 아님**, REST endpoint) |
 | Origin access | Origin access control settings (recommended) |
 | Origin access control | **Create new OAC** → 기본값으로 Create → 생성된 OAC 선택 |
 | Viewer protocol policy | **Redirect HTTP to HTTPS** |
@@ -449,16 +498,21 @@ Rainforest QA나 내부 테스터가 매일 최신 develop 빌드를 **고정된
 
 버킷 이름이 [nightly-rainforest.yml:173](../.github/workflows/nightly-rainforest.yml#L173)에 **하드코딩**되어 있으므로 반드시 아래 이름을 써야 한다.
 
-AWS Console → **S3** → **Create bucket**.
+AWS Console 우상단 리전이 **`아시아 태평양(서울) ap-northeast-2`** 인지 먼저 확인한다. → **S3** → **Create bucket**.
 
-| 항목 | 입력값 |
-|---|---|
-| Bucket name | `okrbest-desktop-daily-builds` (**고정**) |
-| AWS Region | **`us-east-1`** (고정) |
-| Object Ownership | **ACLs enabled** → **Bucket owner preferred** (PART A와 다름 — 워크플로가 `--acl public-read`를 씀) |
-| Block Public Access | 다음 2개 옵션만 해제: "Block public access to buckets and objects granted through **new** access control lists (ACLs)" + "Block public access to buckets and objects granted through **any** access control lists (ACLs)" — 나머지 2개(정책 기반)는 체크 유지 |
-| "I acknowledge..." | 체크 |
-| Versioning | Disable |
+| # | 항목 | 입력값 |
+|---|---|---|
+| 1 | **Bucket type** | **General purpose** (글로벌 네임스페이스) |
+| 2 | **Bucket name** | `okrbest-desktop-daily-builds` (**고정**) |
+| 3 | **Copy settings from existing bucket** | 공란 유지 |
+| 4 | **AWS Region** | **Asia Pacific (Seoul) `ap-northeast-2`** (고정) |
+| 5 | **Object Ownership** | **ACLs enabled** → **Bucket owner preferred** (PART A와 다름 — 워크플로가 `--acl public-read`를 씀) |
+| 6 | **Block Public Access** | 다음 2개 옵션만 **체크 해제**: "Block public access to buckets and objects granted through **new** access control lists (ACLs)" + "Block public access to buckets and objects granted through **any** access control lists (ACLs)" — 나머지 2개(정책 기반)는 체크 **유지** |
+| 7 | "I acknowledge..." | 체크 |
+| 8 | **Bucket Versioning** | Disable |
+| 9 | **Tags** | 선택 (`Project=okrbest-desktop`, `Purpose=daily-build` 권장) |
+| 10 | **Default encryption** | Amazon S3 managed keys (SSE-S3), Bucket Key Enable (기본값) |
+| 11 | **Object Lock** | Disable |
 
 **Create bucket**.
 
@@ -467,6 +521,7 @@ AWS Console → **S3** → **Create bucket**.
 - PART A는 CloudFront OAC 뒤에 숨기므로 ACL 불필요
 - PART B는 워크플로가 개별 오브젝트를 `--acl public-read`로 업로드하므로 ACL이 켜져 있어야 함
 - 이 차이를 지키지 않으면 `AccessControlListNotSupported` 에러로 실패함
+- Block Public Access 4개 옵션 중 **ACL 기반 2개만** 해제하는 이유: 워크플로가 `--acl public-read`로 객체를 공개해야 하지만, 버킷 정책 기반의 public 접근은 원치 않기 때문이다. 정책 기반 2개를 같이 해제하면 실수로 버킷 전체가 정책을 통해 공개될 위험이 커진다.
 
 ---
 
@@ -617,15 +672,21 @@ Playwright E2E 테스트 결과(HTML 리포트, 스크린샷)를 저장하는 �
 
 버킷 이름이 [e2e-functional-template.yml:118](../.github/workflows/e2e-functional-template.yml#L118)에 하드코딩되어 있다.
 
-AWS Console → **S3** → **Create bucket**.
+AWS Console 우상단 리전이 **`아시아 태평양(서울) ap-northeast-2`** 인지 확인 → **S3** → **Create bucket**.
 
-| 항목 | 입력값 |
-|---|---|
-| Bucket name | `okrbest-cypress-report` (**고정**) |
-| AWS Region | `us-east-1` |
-| Object Ownership | ACLs disabled (Bucket owner enforced) |
-| Block Public Access | **모두 체크** (내부 공유용) |
-| Versioning | Disable |
+| # | 항목 | 입력값 |
+|---|---|---|
+| 1 | **Bucket type** | **General purpose** (글로벌 네임스페이스) |
+| 2 | **Bucket name** | `okrbest-cypress-report` (**고정**) |
+| 3 | **Copy settings from existing bucket** | 공란 유지 |
+| 4 | **AWS Region** | **Asia Pacific (Seoul) `ap-northeast-2`** |
+| 5 | **Object Ownership** | ACLs disabled (Bucket owner enforced) |
+| 6 | **Block Public Access** | **4개 모두 체크** (내부 공유용, 완전 비공개) |
+| 7 | "I acknowledge..." | 해당 없음 (Block Public Access를 켰으므로 경고가 뜨지 않음) |
+| 8 | **Bucket Versioning** | Disable |
+| 9 | **Tags** | 선택 (`Project=okrbest-desktop`, `Purpose=e2e-report` 권장) |
+| 10 | **Default encryption** | Amazon S3 managed keys (SSE-S3), Bucket Key Enable (기본값) |
+| 11 | **Object Lock** | Disable |
 
 **Create bucket**.
 
