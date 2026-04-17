@@ -34,10 +34,45 @@
 이 5가지가 모두 준비되어 있는지 먼저 확인한다. 하나라도 없으면 STEP 2로 넘어가기 전에 확보한다.
 
 - [ ] AWS 계정 (루트 아닌 IAM 사용자, 콘솔 접속 가능)
-- [ ] 로컬 `aws` CLI 설치 및 `aws configure`로 자격 증명 설정 완료
+- [ ] 로컬 `aws` CLI 설치 및 자격 증명 설정 완료 (IAM 사용자면 `aws configure`, SSO/IAM Identity Center면 `aws configure sso`)
 - [ ] Route 53에서 관리 중인 `okrbest.com` 도메인 (이 프로젝트의 실제 지정 도메인)
 - [ ] 이 레포(`okrbest/okrbest-desktop`)의 GitHub 관리자 권한
 - [ ] 앱 소스의 [src/common/config/buildConfig.ts:39](../src/common/config/buildConfig.ts#L39)에 하드코딩된 업데이트 URL 확인
+
+### 1-1. AWS CLI 자격 증명이 잘 잡혔는지 확인
+
+가이드의 나머지 STEP이 전부 `aws` CLI 명령에 의존하므로, 본격적으로 들어가기 전에 아래 명령이 **에러 없이** 현재 계정 ARN을 출력하는지 확인한다.
+
+```bash
+aws sts get-caller-identity
+```
+
+에러가 나면 아래 "NoCredentials / 프로필 관련 트러블슈팅"을 참고한다. 이 확인을 생략하면 STEP 2 검증부터 막혀서 버킷이 정말 만들어졌는지 알 수 없게 된다.
+
+#### NoCredentials / 프로필 관련 트러블슈팅
+
+`aws` 명령이 `Unable to locate credentials` 또는 `NoCredentials` 에러를 내면, **자격 증명이 없는 것이 아니라 CLI가 default 프로필을 찾고 있는데 default가 비어 있는 경우**가 대부분이다. SSO/IAM Identity Center로 로그인한 사람은 자격 증명이 `~/.aws/config`의 `[profile okrbest]` 같은 이름 있는 프로필에만 저장되고 default에는 없다.
+
+세 가지 해결 방법:
+
+**방법 1 — 매 명령에 `--profile` 붙이기** (가장 명시적)
+```bash
+aws s3 ls s3://releases.okrbest.com/ --profile okrbest
+```
+
+**방법 2 — 현재 셸 세션에 고정** (이 가이드를 따라가는 동안 가장 편함)
+```bash
+export AWS_PROFILE=okrbest
+aws sts get-caller-identity   # 이제 --profile 없이 동작
+```
+셸을 닫으면 사라진다. 영구 적용하려면 `~/.bashrc` 또는 `~/.zshrc`에 같은 줄을 추가한다.
+
+**방법 3 — 해당 프로필을 default로 승격**
+`~/.aws/config`의 `[profile okrbest]` 블록을 `[default]`로 바꾸거나 복사한다. 이후에는 프로필 지정 없이도 동작한다.
+
+> **⏱️ SSO 세션 만료**: SSO/Identity Center 프로필은 토큰 수명(보통 8~12시간)이 지나면 `ExpiredToken` 에러로 실패한다. 그때는 `aws sso login --profile okrbest`로 재로그인하면 된다. `--profile`을 생략하려면 `AWS_PROFILE` 환경변수가 먼저 설정되어 있어야 한다.
+
+> **📍 기본 리전 확인**: `aws configure get region --profile okrbest` (또는 default) 결과가 `ap-northeast-2`인지 확인. 아니면 `aws configure set region ap-northeast-2 --profile okrbest`로 맞춘다. 리전이 안 맞으면 STEP 2 버킷 생성 시 `IllegalLocationConstraintException`이 난다.
 
 마지막 항목이 중요하다. 현재 값은 다음과 같다:
 ```ts
@@ -265,8 +300,11 @@ Secrets 목록에 위 두 이름이 보이면 된다. 값은 마스킹되어 확
 | Fully qualified domain name | `releases.okrbest.com` |
 | Validation method | DNS validation |
 | Key algorithm | RSA 2048 |
+| **Allow export** (내보내기 허용) | **Disabled** (내보내기 비활성화) |
 
 **Request**.
+
+> **💡 "Allow export"를 Disabled로 두는 이유**: CloudFront는 ACM에서 인증서를 직접 참조하므로 Private key를 내보낼 필요가 없다. Disabled는 **무료**이며 AWS가 자동 갱신한다. Enabled는 PEM 파일을 다운로드해 AWS 외부(온프레미스, 타 클라우드 등)에서도 쓸 수 있게 해주지만 **인증서당 월 $15가 청구되고**, 내보낸 키가 유출될 위험이 생기며, 자동 갱신 후 수동 재배포 부담도 따른다. 이 프로젝트는 전부 CloudFront 안에서 끝나므로 반드시 Disabled.
 
 생성된 인증서를 클릭 → "Create records in Route 53" 버튼 → **Create records**. Route 53이 자동으로 CNAME 검증 레코드를 추가한다. 5~10분 기다리면 Status가 **Issued**로 바뀐다.
 
