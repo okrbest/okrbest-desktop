@@ -10,7 +10,7 @@
 | **B** | Nightly / Rainforest QA 빌드 배포 | 선택 | ~30분 |
 | **C** | E2E 테스트 리포트 저장 | 선택 | ~20분 |
 
-> **전제**: AWS Console 로그인 가능, GitHub 레포 관리자 권한, Route 53에서 관리 중인 `okrbest.com` 도메인 (앱 소스에 하드코딩된 업데이트 도메인 — 자세한 내용은 STEP 1 참조), 로컬에 AWS CLI 설치.
+> **전제**: AWS Console 로그인 가능, GitHub 레포 관리자 권한, `okrbest.com` DNS 관리 권한 (**`okrbest.com`은 외부 DNS에서 운영 중이며 `releases.okrbest.com` 서브도메인만 AWS 배포용**으로 쓴다. 외부 DNS에 CNAME·검증 레코드를 추가할 수 있어야 함 — 자세한 내용은 STEP 1 참조), 로컬에 AWS CLI 설치.
 
 ---
 
@@ -35,7 +35,7 @@
 
 - [ ] AWS 계정 (루트 아닌 IAM 사용자, 콘솔 접속 가능)
 - [ ] 로컬 `aws` CLI 설치 및 자격 증명 설정 완료 (IAM 사용자면 `aws configure`, SSO/IAM Identity Center면 `aws configure sso`)
-- [ ] Route 53에서 관리 중인 `okrbest.com` 도메인 (이 프로젝트의 실제 지정 도메인)
+- [ ] `okrbest.com` 도메인의 DNS 관리 권한 — 이 프로젝트는 **`okrbest.com`을 외부 DNS(도메인 등록업체나 타사 DNS 서비스)에서 운영**하고 `releases.okrbest.com` 서브도메인만 AWS 배포용으로 쓴다. STEP 6에서 외부 DNS에 ACM 검증용 CNAME 1건과 배포용 CNAME 1건을 추가해야 하므로 해당 권한이 필요하다.
 - [ ] 이 레포(`okrbest/okrbest-desktop`)의 GitHub 관리자 권한
 - [ ] 앱 소스의 [src/common/config/buildConfig.ts:39](../src/common/config/buildConfig.ts#L39)에 하드코딩된 업데이트 URL 확인
 
@@ -79,7 +79,7 @@ aws sts get-caller-identity   # 이제 --profile 없이 동작
 updateNotificationURL: 'https://releases.okrbest.com/desktop',
 ```
 
-**이 URL은 빌드 타임에 하드코딩된 이 프로젝트의 지정 도메인이다.** 이 가이드 전체가 사용할 도메인은 `releases.okrbest.com`으로 코드에서 이미 정해져 있다 — 단순 예시가 아니라 앱 바이너리가 실제로 접근하는 주소다. 따라서 **S3 버킷 이름, CloudFront Alternate domain, Route 53 레코드가 모두 `releases.okrbest.com`과 정확히 일치해야** 자동 업데이트가 동작한다. 다른 도메인을 쓰려면 먼저 `buildConfig.ts`를 수정하고 앱을 재빌드한 뒤, 아래 가이드의 모든 `releases.okrbest.com`을 해당 값으로 바꿔 적용해야 한다.
+**이 URL은 빌드 타임에 하드코딩된 이 프로젝트의 지정 도메인이다.** 이 가이드 전체가 사용할 도메인은 `releases.okrbest.com`으로 코드에서 이미 정해져 있다 — 단순 예시가 아니라 앱 바이너리가 실제로 접근하는 주소다. 따라서 **S3 버킷 이름, CloudFront Alternate domain, 외부 DNS의 CNAME 레코드가 모두 `releases.okrbest.com`과 정확히 일치해야** 자동 업데이트가 동작한다. 다른 도메인을 쓰려면 먼저 `buildConfig.ts`를 수정하고 앱을 재빌드한 뒤, 아래 가이드의 모든 `releases.okrbest.com`을 해당 값으로 바꿔 적용해야 한다.
 
 ---
 
@@ -116,7 +116,7 @@ AWS Console → **S3** → **Create bucket**. AWS Console이 위에서 아래로
 - **Bucket type — General purpose vs Directory**: AWS는 2024년부터 버킷 유형을 둘로 나눴다.
   - **General purpose (글로벌 네임스페이스)**: 우리가 아는 기존 S3. 버킷 이름이 전역 고유하고 여러 AZ에 복제된다. 정적 호스팅·CloudFront OAC·`s3://` 표준 경로 모두 이 유형에서만 동작한다. **반드시 이 쪽을 선택한다.**
   - **Directory (계정 리전 네임스페이스, S3 Express One Zone)**: 단일 AZ 저지연 워크로드용. 이름이 `bucket--usw2-az1--x-s3` 같은 특수 형식이고, CloudFront·정적 호스팅과 호환되지 않는다. 릴리즈 배포에는 쓸 수 없다.
-- **Bucket name**: 전역 고유해야 한다. 도메인 `releases.okrbest.com`과 **정확히 같은 이름**을 쓰는 이유는 CloudFront Alternate domain + Route 53 레코드와 매칭해 운영자가 혼동하지 않게 하려는 것이다. 다른 이름을 써도 기술적으로는 동작한다.
+- **Bucket name**: 전역 고유해야 한다. 도메인 `releases.okrbest.com`과 **정확히 같은 이름**을 쓰는 이유는 CloudFront Alternate domain + 외부 DNS의 CNAME 레코드와 매칭해 운영자가 혼동하지 않게 하려는 것이다. 다른 이름을 써도 기술적으로는 동작한다.
 - **Copy settings from existing bucket**: 기존 버킷의 설정을 복사해 오는 편의 옵션. 초보자는 **반드시 공란으로 둔다** — 실수로 다른 프로젝트의 정책/암호화 설정이 끌려오면 디버깅이 어렵다.
 - **AWS Region — 왜 서울인가**: 주 사용자가 한국이므로 `ap-northeast-2`로 고정한다. 계정의 기본 리전도 서울이라 특별히 바꿀 필요가 없다. STEP 6-1의 ACM 인증서만 CloudFront 제약 때문에 `us-east-1`에서 발급하는 단 하나의 예외가 있다.
 - **Object Ownership — ACLs disabled**: PART A는 CloudFront OAC(Origin Access Control)만 버킷에 접근하므로 객체별 ACL이 필요 없다. "Bucket owner enforced"가 2023년 이후 신규 버킷의 AWS 권장 기본값이다. (PART B는 워크플로가 `--acl public-read`를 쓰기 때문에 예외적으로 ACL을 켠다 — STEP B1 참고.)
@@ -274,6 +274,12 @@ Secrets 목록에 위 두 이름이 보이면 된다. 값은 마스킹되어 확
 
 6 STEP 중 가장 복잡하지만 한 번만 하면 된다.
 
+> **📍 외부 DNS 환경에서 진행**
+>
+> `okrbest.com`은 Route 53이 아닌 **외부 DNS 서비스**에서 운영 중이다. 따라서 CloudFront 콘솔이 제공하는 "Route 53 managed domain 자동 통합"(도메인 입력 → ACM 인증서·DNS 검증·A 레코드 자동 생성)은 쓸 수 없고, 아래 6-1·6-2·6-5를 모두 수동으로 진행한다. 6-1에서 만든 ACM 검증용 CNAME, 6-5에서 만드는 배포용 CNAME **둘 다 외부 DNS에 직접 추가**해야 한다.
+>
+> 수행 순서: 6-1 → 6-2 → 6-3 → 6-4 → 6-5 → 6-6 → 6-7.
+
 ### 6-1. ACM 인증서 발급 (⚠️ 이 단계만 us-east-1)
 
 > **❗ 중요 — 이 가이드에서 유일한 리전 예외**
@@ -306,7 +312,23 @@ Secrets 목록에 위 두 이름이 보이면 된다. 값은 마스킹되어 확
 
 > **💡 "Allow export"를 Disabled로 두는 이유**: CloudFront는 ACM에서 인증서를 직접 참조하므로 Private key를 내보낼 필요가 없다. Disabled는 **무료**이며 AWS가 자동 갱신한다. Enabled는 PEM 파일을 다운로드해 AWS 외부(온프레미스, 타 클라우드 등)에서도 쓸 수 있게 해주지만 **인증서당 월 $15가 청구되고**, 내보낸 키가 유출될 위험이 생기며, 자동 갱신 후 수동 재배포 부담도 따른다. 이 프로젝트는 전부 CloudFront 안에서 끝나므로 반드시 Disabled.
 
-생성된 인증서를 클릭 → "Create records in Route 53" 버튼 → **Create records**. Route 53이 자동으로 CNAME 검증 레코드를 추가한다. 5~10분 기다리면 Status가 **Issued**로 바뀐다.
+#### DNS 검증 레코드 추가 (외부 DNS)
+
+Request 직후 인증서 목록에서 방금 만든 인증서를 클릭하면 **Domains** 섹션에 검증용 CNAME 레코드가 표시된다.
+
+> ⚠️ `okrbest.com`이 Route 53에 없으므로 "Create records in Route 53" 버튼은 **쓸 수 없다** (버튼이 비활성화되거나 에러가 난다). 외부 DNS에 직접 추가한다.
+
+1. ACM 콘솔 → 인증서 상세 → **Domains** → 표시되는 **CNAME name**과 **CNAME value** 두 값을 복사한다.
+   - CNAME name 예시: `_abc123def456.releases.okrbest.com.`
+   - CNAME value 예시: `_xyz789.xxxx.acm-validations.aws.`
+2. 외부 DNS 관리 콘솔(도메인 등록업체 또는 타사 DNS) → `okrbest.com` 존 → 레코드 추가:
+   - **Type**: CNAME
+   - **Host / Name**: `_abc123def456.releases` (DNS 제공자에 따라 존 루트를 자동으로 append하므로 끝의 `.okrbest.com.`은 생략하는 경우가 많다 — 제공자 문서 확인)
+   - **Value / Points to**: ACM이 준 값 그대로 (끝의 `.` 포함 여부는 제공자 규칙을 따름)
+   - **TTL**: 300~3600
+3. 저장 후 5~30분 기다리면 ACM 인증서 Status가 **Pending validation** → **Issued**로 바뀐다. `dig CNAME _abc123def456.releases.okrbest.com`으로 전파 여부를 중간에 확인 가능.
+
+> 이 검증용 CNAME 레코드는 **인증서가 Issued된 뒤에도 삭제하지 말 것.** ACM이 자동 갱신할 때 다시 검증하므로 삭제하면 갱신이 실패한다.
 
 #### 🔙 발급 후 반드시 서울 리전으로 되돌리기
 
@@ -316,24 +338,88 @@ CloudFront 생성(6-2) 자체는 리전 무관(글로벌 서비스)이라 어느
 
 ### 6-2. CloudFront Distribution 생성
 
+> **📍 2024년 말 개편된 마법사 UI 기준**
+>
+> AWS는 CloudFront distribution 생성 화면을 단일 폼에서 **6단계 마법사**(`console.aws.amazon.com/cloudfront/v4/home`)로 개편했다. 구 UI의 단일 폼은 이 섹션과 필드 구성이 달라 보이지만 최종 결과(S3 + OAC + HTTPS + Custom SSL)는 동일하다. 새 UI에서는 OAC·Viewer policy·Cache policy·S3 bucket policy 업데이트가 자동화되어 수동 입력이 크게 줄었다.
+
 AWS Console → **CloudFront** → **Create distribution**.
+
+#### 1단계 — Choose a plan
+
+안내/요금제 화면이 표시되면 기본값 그대로 두고 **Next**. (AWS가 이 화면에 신기능 안내나 플랜 선택을 넣을 수 있으므로 옵션이 보이면 **Standard** 또는 기본 선택을 유지한다.)
+
+#### 2단계 — Get started
+
+**Distribution options**
 
 | 항목 | 입력값 |
 |---|---|
-| Origin domain | `releases.okrbest.com.s3.ap-northeast-2.amazonaws.com` (드롭다운에서 S3 버킷 선택 — **website endpoint 아님**, REST endpoint) |
-| Origin access | Origin access control settings (recommended) |
-| Origin access control | **Create new OAC** → 기본값으로 Create → 생성된 OAC 선택 |
-| Viewer protocol policy | **Redirect HTTP to HTTPS** |
-| Allowed HTTP methods | GET, HEAD |
-| Cache policy | CachingOptimized |
-| Alternate domain name (CNAME) | `releases.okrbest.com` |
-| Custom SSL certificate | 6-1에서 발급한 `releases.okrbest.com` 인증서 선택 |
-| Default root object | 비워둠 |
-| Price class | Use all edge locations (또는 예산에 맞게) |
+| Distribution name | `okrbest-desktop-releases` (자유 — 태그 `Name`으로만 저장됨) |
+| Description | 비워둠 |
+| Distribution type | **Single website or app** (기본 선택. Multi-tenant는 여러 도메인이 한 distribution을 공유하는 SaaS용이라 이 프로젝트엔 불필요) |
 
-**Create distribution** 클릭.
+**Domain**
 
-생성 후 상단 경고창에 "The S3 bucket policy needs to be updated" 링크가 뜬다 — **Copy policy** 클릭 → S3 버킷 Permissions → Bucket policy → Edit에 붙여넣기 → Save. 이로써 CloudFront만 버킷에 접근할 수 있게 된다.
+| 항목 | 입력값 |
+|---|---|
+| Route 53 managed domain | **비워둔다** |
+
+> ⚠️ 이 필드는 Route 53 호스티드존이 같은 AWS 계정에 있을 때만 동작한다. `okrbest.com`은 외부 DNS에 있으므로 여기에 입력하면 "No matching Route 53 hosted zone" 에러가 나거나 distribution 생성이 막힌다. **반드시 비워두고 진행**한다. Alternate domain name과 SSL 인증서는 distribution이 만들어진 뒤 설정 화면에서 별도로 연결한다(아래 "생성 직후 확인 사항" 참고).
+
+**Tags** (선택) — `Project=okrbest-desktop` 권장.
+
+**Next**.
+
+#### 3단계 — Specify origin
+
+| 항목 | 입력값 |
+|---|---|
+| Origin type | **Amazon S3** |
+| Origin | **Browse S3** 버튼 클릭 → `releases.okrbest.com` 버킷 선택 |
+| Settings | **Use recommended origin settings** (기본 선택) |
+
+> **💡 "Use recommended origin settings"가 자동으로 적용하는 항목** (구 UI에서 수동으로 고르던 것들):
+> - **Origin Access Control(OAC)** 신규 생성 및 연결
+> - Viewer protocol policy: **Redirect HTTP to HTTPS**
+> - Allowed HTTP methods: **GET, HEAD**
+> - Cache policy: **CachingOptimized**
+>
+> 이 프로젝트의 워크로드(정적 릴리즈 아티팩트 배포)에는 이 기본값으로 충분하다. 개별 값을 바꾸고 싶을 때만 **Customize origin settings**로 전환한다.
+
+**Next**.
+
+#### 4단계 — Enable security
+
+AWS WAF 보호 기능을 붙일지 묻는다. **Do not enable security protections** 선택 → **Next**.
+
+(릴리즈 아티팩트 정적 배포에 WAF는 과도하다. 비용만 늘어나므로 끄고 진행. 필요해지면 나중에 distribution 설정에서 추가 가능.)
+
+#### 5단계 — Get TLS certificate
+
+2단계에서 Route 53 managed domain을 비워뒀으므로 이 단계는 **표시되지 않고 건너뛴다**. (Route 53 도메인을 입력한 경우에만 나타나는 자동 프로비저닝 단계다.) 바로 6단계로 간다.
+
+#### 6단계 — Review and create
+
+입력값 검토 후 **Create distribution**.
+
+#### 생성 직후 확인 사항
+
+- 상단에 "S3 bucket policy was updated" 류의 성공 배너가 뜬다. 구 UI의 "Copy policy → 수동 붙여넣기" 단계가 **자동화**되어 사라졌다.
+- S3 → `releases.okrbest.com` → **Permissions** → **Bucket policy**에 `AllowCloudFrontServicePrincipalReadOnly`(Principal: `cloudfront.amazonaws.com`) Statement가 들어갔는지 확인.
+
+Distribution Status가 **Deploying**으로 뜬다. **Deployed**로 바뀔 때까지 5~15분 걸린다. 기다리는 동안 아래 "Alternate domain + SSL 인증서 연결"을 먼저 진행해도 된다.
+
+#### Alternate domain name + SSL 인증서 연결 (외부 DNS 도메인용 필수 단계)
+
+2단계에서 도메인을 비워뒀기 때문에 지금 distribution은 `dXXXXXXXX.cloudfront.net` 기본 도메인으로만 응답한다. `releases.okrbest.com`으로 접근 가능하게 하려면 Alternate domain name과 6-1에서 만든 인증서를 수동으로 붙여야 한다.
+
+1. CloudFront → 방금 만든 distribution 선택 → **General** 탭 → **Settings** 옆 **Edit** (또는 **Alternate domain names** 섹션의 **Add a domain** 버튼).
+2. **Alternate domain name (CNAME)** 필드에 `releases.okrbest.com` 입력.
+3. **Custom SSL certificate** 드롭다운 → STEP 6-1에서 us-east-1에 발급한 `releases.okrbest.com` 인증서 선택.
+   - 드롭다운에 인증서가 보이지 않으면 6-1의 Status가 **Issued**인지, 리전이 us-east-1인지 재확인.
+4. **Save changes**.
+
+저장 후 distribution이 다시 **Deploying** 상태가 되며 5~10분 재배포된다.
 
 ### 6-3. S3 Block Public Access 다시 켜기
 
@@ -345,20 +431,37 @@ S3 → `releases.okrbest.com` 버킷 → **Permissions** → **Block public acce
 
 CloudFront 목록에서 방금 만든 distribution의 Status가 **Deployed**가 될 때까지 기다린다 (5~15분). 배포가 끝나면 도메인 이름이 `d1234xxxxx.cloudfront.net` 형태로 표시된다.
 
-### 6-5. Route 53에 A 레코드 추가
+### 6-5. 외부 DNS에 CNAME 레코드 추가
 
-Route 53 → Hosted zones → `okrbest.com` → **Create record**.
+`releases.okrbest.com` → CloudFront 기본 도메인(`dXXXXXXXX.cloudfront.net`)을 가리키는 CNAME을 외부 DNS에 만든다.
 
-| 항목 | 입력값 |
+> AWS Route 53이라면 Alias(A) 레코드로 비용 없이 루트 도메인에도 연결할 수 있지만, 외부 DNS에서는 Alias가 존재하지 않는다. 대신 표준 **CNAME**을 쓴다. 서브도메인(`releases`)이라 CNAME이 문제없이 동작한다.
+
+#### CloudFront 기본 도메인 확인
+
+CloudFront → distribution 목록 → 방금 만든 distribution의 **Domain name** 컬럼 복사 (예: `d1a2b3c4d5e6f7.cloudfront.net`).
+
+#### 외부 DNS에서 CNAME 추가
+
+외부 DNS 관리 콘솔(도메인 등록업체 또는 타사 DNS) → `okrbest.com` 존 → 새 레코드 추가:
+
+| 항목 | 값 |
 |---|---|
-| Record name | `releases` |
-| Record type | A |
-| Alias | **Yes** |
-| Route traffic to | Alias to CloudFront distribution |
-| Choose distribution | 방금 만든 distribution 선택 |
-| Routing policy | Simple routing |
+| Type | CNAME |
+| Host / Name | `releases` (또는 제공자 규칙에 따라 `releases.okrbest.com`) |
+| Value / Points to | `d1a2b3c4d5e6f7.cloudfront.net` (위에서 복사한 CloudFront 도메인) |
+| TTL | 300~3600 |
 
-**Create records** 클릭.
+> 제공자에 따라 끝의 `.` 유무가 다르고, Host 필드에 서브도메인만 적는 곳도 있고 FQDN 전체를 적는 곳도 있다. 제공자 문서나 기존 레코드 예시를 참고.
+
+#### 검증
+
+```bash
+dig CNAME releases.okrbest.com
+# ANSWER SECTION에 d1a2b3c4d5e6f7.cloudfront.net이 보이면 전파 완료
+```
+
+전파까지 보통 1~5분, TTL에 따라 최대 수십 분 걸릴 수 있다.
 
 ### 6-6. CloudFront invalidation 권한 추가 (선택이지만 권장)
 
@@ -409,7 +512,7 @@ aws s3 rm s3://releases.okrbest.com/desktop/latest.txt
 
 세 명령이 모두 정상 응답하면 PART A의 AWS 쪽 세팅은 완료다.
 
-> **DNS 전파 지연으로 실패하는 경우**: Route 53 CNAME/A 레코드 변경 후 최대 5분까지 전파 대기 필요. `dig releases.okrbest.com`로 확인.
+> **DNS 전파 지연으로 실패하는 경우**: 외부 DNS에 추가한 CNAME 레코드의 TTL에 따라 최대 수십 분까지 전파 대기가 필요할 수 있다. `dig releases.okrbest.com`로 확인.
 
 ---
 
@@ -507,7 +610,7 @@ aws s3 cp /tmp/rc.txt s3://releases.okrbest.com/desktop/rc.txt --cache-control "
 - [ ] STEP 3: GitHub OIDC provider가 AWS에 등록됨
 - [ ] STEP 4: IAM Role `OKRBestDesktopRelease` 생성, Trust Policy에 `refs/tags/v*` + `refs/heads/master` 조건 포함
 - [ ] STEP 5: GitHub Secrets 2개 (`OKRBEST_DESKTOP_RELEASE_AWS_ROLE_TO_ASSUME`, `OKRBEST_DESKTOP_RELEASE_BUCKET`) 등록
-- [ ] STEP 6: CloudFront + ACM + Route 53 연결, `https://releases.okrbest.com/desktop/` 접근 가능
+- [ ] STEP 6: CloudFront + ACM + 외부 DNS CNAME 연결, `https://releases.okrbest.com/desktop/` 접근 가능
 - [ ] STEP 7: 실제 RC 태그로 워크플로 실행 성공, S3에 아티팩트 업로드 확인
 - [ ] STEP 8: 앱에서 가짜 버전으로 업데이트 알림 확인 후 원상복구
 - [ ] `DISTRIBUTION_ID`와 IAM 정책에 CloudFront invalidation 권한 추가 (6-6)
