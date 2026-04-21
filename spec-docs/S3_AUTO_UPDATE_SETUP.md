@@ -648,12 +648,16 @@ AWS Console 우상단 리전이 **`아시아 태평양(서울) ap-northeast-2`**
 | 3 | **Copy settings from existing bucket** | 공란 유지 |
 | 4 | **AWS Region** | **Asia Pacific (Seoul) `ap-northeast-2`** (고정) |
 | 5 | **Object Ownership** | **ACLs enabled** → **Bucket owner preferred** (PART A와 다름 — 워크플로가 `--acl public-read`를 씀) |
-| 6 | **Block Public Access** | 다음 2개 옵션만 **체크 해제**: "Block public access to buckets and objects granted through **new** access control lists (ACLs)" + "Block public access to buckets and objects granted through **any** access control lists (ACLs)" — 나머지 2개(정책 기반)는 체크 **유지** |
-| 7 | "I acknowledge..." | 체크 |
-| 8 | **Bucket Versioning** | Disable |
-| 9 | **Tags** | 선택 (`Project=okrbest-desktop`, `Purpose=daily-build` 권장) |
-| 10 | **Default encryption** | Amazon S3 managed keys (SSE-S3), Bucket Key Enable (기본값) |
-| 11 | **Object Lock** | Disable |
+| 6 | **모든 퍼블릭 액세스 차단** (상위 체크박스) | **체크 해제** — 아래 4개 개별 옵션을 각각 제어하기 위해 마스터 체크를 먼저 끈다 |
+| 7 | 개별 옵션 ① **새 ACL(액세스 제어 목록)을 통해 부여된 버킷 및 객체에 대한 퍼블릭 액세스 차단** | **체크 해제** (ACL 기반) |
+| 8 | 개별 옵션 ② **임의의 ACL(액세스 제어 목록)을 통해 부여된 버킷 및 객체에 대한 퍼블릭 액세스 차단** | **체크 해제** (ACL 기반) |
+| 9 | 개별 옵션 ③ **새 퍼블릭 버킷 또는 액세스 지점 정책을 통해 부여된 버킷 및 객체에 대한 퍼블릭 액세스 차단** | **체크 유지** (정책 기반) |
+| 10 | 개별 옵션 ④ **임의의 퍼블릭 버킷 또는 액세스 지점 정책을 통해 부여된 버킷 및 객체에 대한 퍼블릭 및 교차 계정 액세스 차단** | **체크 유지** (정책 기반) |
+| 11 | 하단 경고 박스의 **"현재 설정으로 인해 이 버킷과 그 안에 포함된 객체가 퍼블릭 상태가 될 수 있음을 알고 있습니다."** | **체크** (체크하지 않으면 저장 불가) |
+| 12 | **Bucket Versioning** | Disable |
+| 13 | **Tags** | 선택 (`Project=okrbest-desktop`, `Purpose=daily-build` 권장) |
+| 14 | **Default encryption** | Amazon S3 managed keys (SSE-S3), Bucket Key Enable (기본값) |
+| 15 | **Object Lock** | Disable |
 
 **Create bucket**.
 
