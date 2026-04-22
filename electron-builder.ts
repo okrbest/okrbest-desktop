@@ -192,7 +192,6 @@ const config = {
                 to: 'gpo',
             },
         ],
-        sign: false,
     },
     msi: {
         additionalWixArgs: ['-ext', 'WixUtilExtension'],
