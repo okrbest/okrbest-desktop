@@ -4,7 +4,7 @@
   "version": "6.2.0-develop.1",
   "description": "OKR Best Desktop",
   "main": "dist/index.js",
-  "author": "OKR Best",
+  "author": "OKR Best <support@okr.best>",
   "license": "Apache-2.0",
   "desktopName": "OKRBest.Desktop",
   "homepage": "https://okr.best",
