@@ -30,6 +30,9 @@ jobs:
   nightly-main:
     needs:
       - tag-nightly-build
+    permissions:
+      id-token: write
+      contents: read
     uses: ./.github/workflows/nightly-main.yml
     secrets: inherit
     with:
@@ -38,6 +41,8 @@ jobs:
   nightly-rainforest:
     needs:
       - tag-nightly-build
+    permissions:
+      contents: read
     uses: ./.github/workflows/nightly-rainforest.yml
     secrets: inherit
     with:
