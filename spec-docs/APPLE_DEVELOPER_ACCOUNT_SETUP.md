@@ -187,19 +187,19 @@ Apple 인증서 발급 전 CSR 파일을 만듭니다.
 1. `https://developer.apple.com/account/resources` → `Certificates, Identifiers & Profiles`
 2. 좌측 사이드바 `Certificates` 클릭
 3. 우상단 `+` 클릭
-4. `Software` 그룹에서 **`Developer ID`** 선택 → `Continue`
-5. 하위 선택 화면에서 **`Developer ID Application`** 선택 → `Continue`
-6. `G2 Sub-CA (Xcode 11.4.1 or later)` 선택 (기본값, 변경 불요) → `Continue`
-7. `Choose File`로 4장에서 만든 **`okrbest-devid-app.certSigningRequest`** 업로드 → `Continue`
-8. `Download`로 `.cer` 파일 저장
+4. 현재 포털은 모든 인증서 타입이 라디오 버튼 평탄 목록으로 나옵니다. `Software` 섹션에서 **`Developer ID Application`**을 직접 선택 → `Continue`
+   > 구버전 UI(2023년 이전)에서는 `Software` → `Developer ID` → `Continue` → Application/Installer 중 선택이라는 2단계였지만, 현재 UI에서는 단일 단계입니다. 포털 렌더링에 따라 2단계로 보일 수 있는데, 그 경우 상위에서 `Developer ID`를 고른 뒤 하위에서 `Developer ID Application`을 고르면 됩니다.
+5. (`G2 Sub-CA (Xcode 11.4.1 or later)` 옵션이 보이면 기본값 그대로 → `Continue`)
+6. `Choose File`로 4장에서 만든 **`okrbest-devid-app.certSigningRequest`** 업로드 → `Continue`
+7. `Download`로 `.cer` 파일 저장
 
 권장 저장 파일명:
 ```text
 ~/secure/apple-signing/DeveloperID_Application_OKRBest.cer
 ```
 
-9. 다운로드한 `.cer` 더블클릭 → Keychain Access에 설치됨
-10. Keychain Access → 왼쪽 `로그인` → 상단 `내 인증서` → `Developer ID Application: ...` 항목 왼쪽 ▶를 펼쳐 **개인키(키 아이콘)가 함께 있는지 확인**
+8. 다운로드한 `.cer` 더블클릭 → Keychain Access에 설치됨
+9. Keychain Access → 왼쪽 `로그인` → 상단 `내 인증서` → `Developer ID Application: ...` 항목 왼쪽 ▶를 펼쳐 **개인키(키 아이콘)가 함께 있는지 확인**
 
 ---
 
@@ -210,9 +210,9 @@ DMG/PKG 인스톨러 서명에 필요합니다.
 > ⚠️ Developer ID Application 발급에 쓴 CSR은 **재사용할 수 없습니다**. 4장을 다시 실행해 **새 CSR**(`okrbest-devid-installer.certSigningRequest`)을 먼저 만드세요. 재사용 시 포털이 *"The uploaded CSR file has already been used to generate another certificate"* 에러를 냅니다.
 
 1. `Certificates` → `+`
-2. `Software` → `Developer ID` → `Continue`
-3. 하위에서 **`Developer ID Installer`** 선택 → `Continue`
-4. 새로 만든 **`okrbest-devid-installer.certSigningRequest`** 업로드 → `Download` → 설치
+2. `Software` 섹션에서 **`Developer ID Installer`** 선택 → `Continue`
+   > (구버전 UI가 나오면 `Developer ID` → `Continue` → `Developer ID Installer` 2단계)
+3. 새로 만든 **`okrbest-devid-installer.certSigningRequest`** 업로드 → `Download` → 설치
 
 권장 파일명:
 ```text
@@ -242,7 +242,7 @@ MAS 제출용 `.app` 서명에 필요합니다.
 > ⚠️ 5·6장에서 쓴 CSR은 **재사용할 수 없습니다**. 4장을 다시 실행해 **세 번째 CSR**(`okrbest-mas.certSigningRequest`)을 만드세요.
 
 1. `Certificates` → `+`
-2. `Software` 그룹에서 **`Mac App Distribution`** 선택 → `Continue`
+2. `Software` 섹션에서 **`Mac App Distribution`** 선택 → `Continue`
 3. 새로 만든 **`okrbest-mas.certSigningRequest`** 업로드 → `Download` → 설치
 
 권장 파일명:
