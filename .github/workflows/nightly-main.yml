@@ -90,18 +90,18 @@ jobs:
           OKRBEST_WIN_INSTALLERS: 1
         run: npm run package:windows-msi
       - name: nightly/sign-windows-exe
-        if: ${{ secrets.CERTUM_OTP_URI != '' && secrets.CERTUM_USERID != '' }}
-        shell: powershell
         env:
           CERTUM_OTP_URI: ${{ secrets.CERTUM_OTP_URI }}
           CERTUM_USERID: ${{ secrets.CERTUM_USERID }}
+        if: ${{ env.CERTUM_OTP_URI != '' && env.CERTUM_USERID != '' }}
+        shell: powershell
         run: pwsh -ExecutionPolicy Bypass -File ./scripts/certum-sign.ps1 -FilePath "release/win*-unpacked/*.exe"
       - name: nightly/sign-windows-msi
-        if: ${{ secrets.CERTUM_OTP_URI != '' && secrets.CERTUM_USERID != '' }}
-        shell: powershell
         env:
           CERTUM_OTP_URI: ${{ secrets.CERTUM_OTP_URI }}
           CERTUM_USERID: ${{ secrets.CERTUM_USERID }}
+        if: ${{ env.CERTUM_OTP_URI != '' && env.CERTUM_USERID != '' }}
+        shell: powershell
         run: pwsh -ExecutionPolicy Bypass -File ./scripts/certum-sign.ps1 -FilePath "release/*.msi"
       - name: nightly/package
         run: |
@@ -268,7 +268,9 @@ jobs:
       - upload-to-s3
     steps:
       - name: nightly/share-links-to-channel
-        if: ${{ secrets.OKRBEST_DESKTOP_NIGHTLY_WEBHOOK_URL != '' }}
+        env:
+          OKRBEST_DESKTOP_NIGHTLY_WEBHOOK_URL: ${{ secrets.OKRBEST_DESKTOP_NIGHTLY_WEBHOOK_URL }}
+        if: ${{ env.OKRBEST_DESKTOP_NIGHTLY_WEBHOOK_URL != '' }}
         uses: okrbest/action-okrbest-notify@master
         with:
           MATTERMOST_WEBHOOK_URL: ${{ secrets.OKRBEST_DESKTOP_NIGHTLY_WEBHOOK_URL }}
