@@ -9,7 +9,7 @@
 이 문서를 끝까지 따라 하면 아래가 완료됩니다.
 
 1. Apple Developer 포털에서 팀/권한 상태 확인 + Team ID 확인
-2. App ID(`OKRBest.Desktop`) 및 App Group 등록
+2. App ID(`OKRBest.Desktop`) 등록
 3. 인증서 3종 발급: Developer ID Application, Developer ID Installer, Mac App Distribution
 4. `.p12` 인증서 파일 2개 생성 (Developer ID용 1개 + MAS용 1개)
 5. App Store Connect API Key(`.p8`) 생성
@@ -84,7 +84,7 @@
 
 ---
 
-## 3. 팀/권한 확인 + App ID/App Group 등록
+## 3. 팀/권한 확인 + App ID 등록
 
 ### 3.1 Team ID 확인 — ⚠️ 가장 먼저 확인
 
@@ -125,7 +125,7 @@ sed -i '' 's/72EQ97MVJ8/<YOUR_TEAM_ID>/g' resources/mac/entitlements.mas.plist
 6. `Description` 입력 (예: `OKR Best Desktop`)
 7. **Bundle ID** 섹션에서 `Explicit` 선택, 값 입력: **`OKRBest.Desktop`**
 8. **Capabilities** 체크박스 활성화 — App ID 포털에서 켜야 하는 건 다음 2개뿐입니다:
-   - **App groups** *(주의: 그룹 식별자 자체는 3.3에서 별도 등록 필요)*
+   - **App groups** *(체크만 함 — `Configure` 버튼은 누르지 말 것. 이유는 3.3 참조)*
    - **Communication Notifications**
 
    > **왜 App Sandbox와 Hardened Runtime은 여기 없는가**: 이 두 가지는 App ID 포털이 아니라 빌드 설정 / entitlements 파일에서 관리됩니다. 이미 [electron-builder.ts:132](../electron-builder.ts#L132)의 `hardenedRuntime: true`와 [resources/mac/entitlements.mas.plist:21-22](../resources/mac/entitlements.mas.plist#L21-L22)의 `com.apple.security.app-sandbox` 키로 자동 적용되므로 추가 조치 불필요. Apple 공식 문서도 *"The App Sandbox entitlement does not have an Xcode checkbox"*라고 명시하고 있고, 포털 체크박스도 존재하지 않습니다.
@@ -133,23 +133,24 @@ sed -i '' 's/72EQ97MVJ8/<YOUR_TEAM_ID>/g' resources/mac/entitlements.mas.plist
    > `com.apple.security.device.*`, `.network.*`, `.files.*` 같은 entitlement들은 App Sandbox의 하위 리소스 옵션이라 포털에 별도 체크박스가 없고 entitlements 파일에서만 관리됩니다. `com.apple.security.cs.allow-jit` 역시 Hardened Runtime의 하위 옵션이라 entitlements에서만 관리됩니다.
 9. `Continue` → 요약 확인 → `Register`
 
-### 3.3 App Group 등록
+### 3.3 App Group 처리 — 포털 등록 안 함 (macOS 전통 스타일)
 
-entitlements.mas.plist는 App Group `<TEAM_ID>.OKRBest.Desktop`을 참조합니다 ([line 23-26](../resources/mac/entitlements.mas.plist#L23-L26)). 이 App Group을 별도 등록해야 MAS 제출 시 인증서 프로비저닝에서 막히지 않습니다.
+[resources/mac/entitlements.mas.plist:25](../resources/mac/entitlements.mas.plist#L25)가 참조하는 `72EQ97MVJ8.OKRBest.Desktop`은 **macOS 전통 스타일 App Group**(Team ID prefix 방식)입니다. Apple 공식 문서:
 
-1. `Identifiers` 사이드바에서 상단 드롭다운을 `App Groups`로 전환
-2. `+` 클릭
-3. `App Groups` 선택 → `Continue`
-4. `Description`: `OKRBest Desktop Group` 등
-5. `Identifier`: **`72EQ97MVJ8.OKRBest.Desktop`** (3.1에서 Team ID 치환했다면 본인 Team ID 사용)
-6. `Continue` → `Register`
+> *"On macOS App Groups are not mediated by the developer web site and don't need to be allowlisted by a provisioning profile. For this reason, group IDs must be prefixed by your Team ID."*
 
-### 3.4 App ID에 App Group 연결
+즉 이 스타일은 Team ID prefix 자체가 격리 경계 역할을 하므로 **포털 등록/프로비저닝 프로파일 연결이 모두 불필요**합니다.
 
-1. `Identifiers` → 위에서 만든 `OKRBest.Desktop` App ID 클릭
-2. `Capabilities`에서 `App Groups` 행의 `Configure` 버튼 클릭
-3. 3.3에서 등록한 `72EQ97MVJ8.OKRBest.Desktop` 체크
-4. `Continue` → `Save`
+**해야 할 것**:
+- 3.2 단계 8에서 **App groups capability 체크박스만 켜두기** (켜둔 상태로 `Continue` → `Register`).
+
+**하지 말아야 할 것**:
+- ❌ `Identifiers` → 드롭다운을 `App Groups`로 바꿔서 새 그룹을 **만들지 말 것**. 현 포털 UI는 iOS 스타일(`group.*`)만 받으므로 `72EQ97MVJ8.OKRBest.Desktop` 입력 시 자동으로 `group.72EQ97MVJ8.OKRBest.Desktop`으로 접두사가 붙어버려 entitlements와 일치하지 않습니다.
+- ❌ App ID의 `Capabilities` 행에서 `App groups`의 **`Configure` 버튼을 누르지 말 것**. 이 버튼은 iOS 스타일 그룹을 선택하는 용도라 macOS 전통 스타일에선 의미가 없고 오히려 빈 목록이 저장돼 혼란을 일으킵니다.
+
+**entitlements 파일 수정도 불필요** — `72EQ97MVJ8.OKRBest.Desktop` 그대로 유지합니다(3.1에서 Team ID를 바꿨으면 새 Team ID로 치환된 값을 유지).
+
+> 향후 iOS 앱 / Mac Catalyst 앱과 App Group을 공유할 필요가 생기면 iOS 스타일(`group.com.okrbest.shared` 등)로 마이그레이션이 필요합니다. 그땐 포털에 App Group을 정식 등록하고 `Configure`로 연결해야 합니다. 현 데스크톱 단독 구성에선 전통 스타일 그대로가 맞습니다.
 
 ---
 
@@ -441,11 +442,12 @@ security cms -D -i ~/secure/apple-signing/mas.provisionprofile | grep -A1 "AppID
 
 원인:
 - 3.1의 Team ID 치환 누락: entitlements.mas.plist의 Team ID prefix가 실제 인증서 Team ID와 다름
-- App Group을 App ID에 연결하지 않음
+- App groups capability 체크박스가 꺼져 있음
+- (iOS 스타일로 마이그레이션한 경우) 포털의 App Group identifier와 entitlements 값이 불일치
 
 해결:
 - `resources/mac/entitlements.mas.plist`의 Team ID 세 군데를 실제 값으로 수정
-- 3.4 다시 수행 (App Group을 App ID에 Configure)
+- App ID → Capabilities → **App groups 체크박스가 켜져 있는지** 확인 (단 `Configure`는 누르지 말 것 — 3.3 참조)
 
 ### 13.4 API Key 관련 notarization 실패
 
@@ -486,8 +488,7 @@ security cms -D -i ~/secure/apple-signing/mas.provisionprofile | grep -A1 "AppID
 
 - [ ] Apple Developer Membership Active + Team ID 확인
 - [ ] `resources/mac/entitlements.mas.plist`의 Team ID가 실제 값과 일치
-- [ ] App ID `OKRBest.Desktop` 등록 + Capabilities 활성화
-- [ ] App Group `<TEAM_ID>.OKRBest.Desktop` 등록 + App ID에 연결
+- [ ] App ID `OKRBest.Desktop` 등록 + Capabilities 활성화 (App groups 체크만, Configure는 누르지 않음)
 - [ ] CSR 생성
 - [ ] Developer ID Application 인증서 발급 및 설치
 - [ ] Developer ID Installer 인증서 발급 및 설치
