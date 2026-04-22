@@ -124,11 +124,13 @@ sed -i '' 's/72EQ97MVJ8/<YOUR_TEAM_ID>/g' resources/mac/entitlements.mas.plist
 5. Type 선택 화면에서 `App` 선택 → `Continue`
 6. `Description` 입력 (예: `OKR Best Desktop`)
 7. **Bundle ID** 섹션에서 `Explicit` 선택, 값 입력: **`OKRBest.Desktop`**
-8. **Capabilities** 체크박스 활성화 — 최소 아래 항목을 켜야 MAS 제출이 통과됩니다 (현 [entitlements.mas.plist](../resources/mac/entitlements.mas.plist) 기준):
-   - App Sandbox
-   - App Groups *(주의: App Group 자체는 3.3에서 별도 등록 필요)*
-   - Hardened Runtime
-   - User Notifications
+8. **Capabilities** 체크박스 활성화 — App ID 포털에서 켜야 하는 건 다음 2개뿐입니다:
+   - **App groups** *(주의: 그룹 식별자 자체는 3.3에서 별도 등록 필요)*
+   - **Communication Notifications**
+
+   > **왜 App Sandbox와 Hardened Runtime은 여기 없는가**: 이 두 가지는 App ID 포털이 아니라 빌드 설정 / entitlements 파일에서 관리됩니다. 이미 [electron-builder.ts:132](../electron-builder.ts#L132)의 `hardenedRuntime: true`와 [resources/mac/entitlements.mas.plist:21-22](../resources/mac/entitlements.mas.plist#L21-L22)의 `com.apple.security.app-sandbox` 키로 자동 적용되므로 추가 조치 불필요. Apple 공식 문서도 *"The App Sandbox entitlement does not have an Xcode checkbox"*라고 명시하고 있고, 포털 체크박스도 존재하지 않습니다.
+   >
+   > `com.apple.security.device.*`, `.network.*`, `.files.*` 같은 entitlement들은 App Sandbox의 하위 리소스 옵션이라 포털에 별도 체크박스가 없고 entitlements 파일에서만 관리됩니다. `com.apple.security.cs.allow-jit` 역시 Hardened Runtime의 하위 옵션이라 entitlements에서만 관리됩니다.
 9. `Continue` → 요약 확인 → `Register`
 
 ### 3.3 App Group 등록
