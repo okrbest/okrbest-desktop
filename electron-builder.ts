@@ -139,6 +139,7 @@ const config = {
             NSFocusStatusUsageDescription: 'Focus status is used by OKR Best to determine whether to send notifications or not.',
             LSFileQuarantineEnabled: true,
         },
+        ...getMacVersions(),
     },
     mas: {
         entitlements: './resources/mac/entitlements.mas.plist',

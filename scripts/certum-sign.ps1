@@ -162,13 +162,34 @@ function Wait-ForCodeSigningCert {
 }
 
 # === 4. SimplySign Desktop 설치 ==============================================
-$SimplySignUrl = "https://simplysign.certum.eu/app/SimplySignDesktop-latest.exe"
-$InstallerPath = "$env:TEMP\SimplySignDesktop-latest.exe"
+# Certum 공식 서포트 페이지(https://support.certum.eu/en/cert-offer-software-and-libraries/)에서
+# 게시하는 버전 고정 URL을 사용한다. 과거 `simplysign.certum.eu/app/...-latest.exe` 경로는 폐기되어
+# 현재 HTML 랜딩 페이지로 리다이렉트되므로 리다이렉트 허용은 금지하고 PE 시그니처까지 검증한다.
+$SimplySignVersion = "9.4.2.86"
+$SimplySignUrl = "https://files.certum.eu/software/SimplySignDesktop/Windows/$SimplySignVersion/SimplySignDesktop-$SimplySignVersion-win-64-bit.exe"
+$InstallerPath = "$env:TEMP\SimplySignDesktop-$SimplySignVersion-win-64-bit.exe"
 $SimplySignExe = "C:\Program Files (x86)\Certum\SimplySign Desktop\SimplySign Desktop.exe"
 
 if (-not (Test-Path $SimplySignExe)) {
-    Write-Host "Downloading SimplySign Desktop..."
-    Invoke-WebRequest -Uri $SimplySignUrl -OutFile $InstallerPath -UseBasicParsing
+    Write-Host "Downloading SimplySign Desktop $SimplySignVersion..."
+    $maxAttempts = 3
+    for ($i = 1; $i -le $maxAttempts; $i++) {
+        try {
+            Invoke-WebRequest -Uri $SimplySignUrl -OutFile $InstallerPath `
+                -MaximumRedirection 0 -UseBasicParsing
+            break
+        } catch {
+            if ($i -eq $maxAttempts) { throw }
+            Start-Sleep -Seconds ([math]::Pow(2, $i))
+        }
+    }
+
+    $head = [byte[]]::new(2)
+    $fs = [System.IO.File]::OpenRead($InstallerPath)
+    try { [void]$fs.Read($head, 0, 2) } finally { $fs.Close() }
+    if ($head[0] -ne 0x4D -or $head[1] -ne 0x5A) {
+        throw "Downloaded file is not a valid PE executable. URL may be outdated: $SimplySignUrl"
+    }
 
     Write-Host "Installing SimplySign Desktop..."
     Start-Process -FilePath $InstallerPath -ArgumentList "/S" -Wait -NoNewWindow
