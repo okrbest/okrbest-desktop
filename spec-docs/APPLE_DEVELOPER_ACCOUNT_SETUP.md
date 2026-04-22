@@ -156,22 +156,29 @@ sed -i '' 's/72EQ97MVJ8/<YOUR_TEAM_ID>/g' resources/mac/entitlements.mas.plist
 
 ## 4. CSR 생성 (Keychain Access)
 
-Apple 인증서 발급 전 CSR 파일을 만듭니다. **모든 인증서 발급마다 같은 CSR을 재사용해도 되고 새로 만들어도 되지만, CSR을 만든 동일 Mac 사용자 계정의 로그인 키체인에서만 개인키에 접근 가능**함을 기억하세요.
+Apple 인증서 발급 전 CSR 파일을 만듭니다.
+
+> ⚠️ **CSR은 인증서마다 따로 만들어야 합니다.** Apple 공식 문서: *"A unique CSR is required for each certificate."* 동일 CSR을 다시 업로드하면 *"The uploaded CSR file has already been used to generate another certificate"* 에러가 납니다. 특히 Developer ID Application과 Developer ID Installer는 서로 다른 public key를 요구합니다. 따라서 이 프로젝트 기준으로 **CSR을 총 3번 생성**해야 합니다 (5장·6장·7장용). CSR을 만든 동일 Mac 사용자 계정의 로그인 키체인에서만 개인키에 접근 가능함도 기억하세요.
+>
+> (예외: 기존 **같은 종류** 인증서를 갱신할 때는 이전 CSR 재사용 가능.)
+
+각 인증서 발급 직전에 아래 단계를 **한 번씩** 수행하세요.
 
 1. `Command + Space` → `키체인 접근` 실행 (영문 메뉴: `Keychain Access`)
 2. 상단 메뉴바: `키체인 접근` → `인증서 지원` → `인증 기관에서 인증서 요청...`
    (영문: `Keychain Access` → `Certificate Assistant` → `Request a Certificate from a Certificate Authority...`)
 3. 팝업 입력:
    - **사용자 이메일 주소** / User Email Address: Apple ID 이메일
-   - **일반 이름** / Common Name: 식별용 이름 (예: `OKRBest Mac Signing`)
+   - **일반 이름** / Common Name: 식별용 이름. **CSR마다 다른 값 권장** — 예: `OKRBest DevID App`, `OKRBest DevID Installer`, `OKRBest MAS Distribution`
    - **CA 이메일 주소** / CA Email Address: 비워둠
    - **요청 방식**: `디스크에 저장` (Saved to disk)
-4. `계속` → `.certSigningRequest` 저장
-
-권장 저장 위치:
-```text
-~/secure/apple-signing/okrbest.certSigningRequest
-```
+4. `계속` → `.certSigningRequest` 저장 — 파일명에 용도를 명시하면 혼동을 줄일 수 있습니다:
+   ```text
+   ~/secure/apple-signing/okrbest-devid-app.certSigningRequest       # 5장에서 사용
+   ~/secure/apple-signing/okrbest-devid-installer.certSigningRequest # 6장에서 사용
+   ~/secure/apple-signing/okrbest-mas.certSigningRequest             # 7장에서 사용
+   ```
+   필요 시점마다 이 단계를 재실행해 해당 CSR을 만들면 됩니다. 모두 미리 만들어 두고 순서대로 업로드해도 됩니다.
 
 ---
 
@@ -183,7 +190,7 @@ Apple 인증서 발급 전 CSR 파일을 만듭니다. **모든 인증서 발급
 4. `Software` 그룹에서 **`Developer ID`** 선택 → `Continue`
 5. 하위 선택 화면에서 **`Developer ID Application`** 선택 → `Continue`
 6. `G2 Sub-CA (Xcode 11.4.1 or later)` 선택 (기본값, 변경 불요) → `Continue`
-7. `Choose File`로 4장에서 만든 CSR 업로드 → `Continue`
+7. `Choose File`로 4장에서 만든 **`okrbest-devid-app.certSigningRequest`** 업로드 → `Continue`
 8. `Download`로 `.cer` 파일 저장
 
 권장 저장 파일명:
@@ -198,12 +205,14 @@ Apple 인증서 발급 전 CSR 파일을 만듭니다. **모든 인증서 발급
 
 ## 6. Developer ID Installer 인증서 발급
 
-DMG/PKG 인스톨러 서명에 필요합니다. 5장과 동일한 CSR 재사용 가능.
+DMG/PKG 인스톨러 서명에 필요합니다.
+
+> ⚠️ Developer ID Application 발급에 쓴 CSR은 **재사용할 수 없습니다**. 4장을 다시 실행해 **새 CSR**(`okrbest-devid-installer.certSigningRequest`)을 먼저 만드세요. 재사용 시 포털이 *"The uploaded CSR file has already been used to generate another certificate"* 에러를 냅니다.
 
 1. `Certificates` → `+`
 2. `Software` → `Developer ID` → `Continue`
 3. 하위에서 **`Developer ID Installer`** 선택 → `Continue`
-4. CSR 업로드 → `Download` → 설치
+4. 새로 만든 **`okrbest-devid-installer.certSigningRequest`** 업로드 → `Download` → 설치
 
 권장 파일명:
 ```text
@@ -230,9 +239,11 @@ DMG/PKG 인스톨러 서명에 필요합니다. 5장과 동일한 CSR 재사용 
 
 MAS 제출용 `.app` 서명에 필요합니다.
 
+> ⚠️ 5·6장에서 쓴 CSR은 **재사용할 수 없습니다**. 4장을 다시 실행해 **세 번째 CSR**(`okrbest-mas.certSigningRequest`)을 만드세요.
+
 1. `Certificates` → `+`
 2. `Software` 그룹에서 **`Mac App Distribution`** 선택 → `Continue`
-3. CSR 업로드 → `Download` → 설치
+3. 새로 만든 **`okrbest-mas.certSigningRequest`** 업로드 → `Download` → 설치
 
 권장 파일명:
 ```text
@@ -489,7 +500,7 @@ security cms -D -i ~/secure/apple-signing/mas.provisionprofile | grep -A1 "AppID
 - [ ] Apple Developer Membership Active + Team ID 확인
 - [ ] `resources/mac/entitlements.mas.plist`의 Team ID가 실제 값과 일치
 - [ ] App ID `OKRBest.Desktop` 등록 + Capabilities 활성화 (App groups 체크만, Configure는 누르지 않음)
-- [ ] CSR 생성
+- [ ] CSR 3개 생성 (App ID Application / Installer / MAS 각각)
 - [ ] Developer ID Application 인증서 발급 및 설치
 - [ ] Developer ID Installer 인증서 발급 및 설치
 - [ ] Mac App Distribution 인증서 발급 및 설치
