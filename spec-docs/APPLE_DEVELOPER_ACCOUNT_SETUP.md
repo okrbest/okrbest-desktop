@@ -1,19 +1,21 @@
 # Apple 개발자 계정 작업 가이드 (macOS 초보자용)
 
-> 이 문서는 **개인 Apple 개발자 계정(유료 가입 완료)** 상태에서, OKR Best Desktop 빌드에 필요한 Apple 관련 작업을 처음부터 끝까지 수행하는 방법을 설명합니다.
+> 이 문서는 **개인 Apple 개발자 계정(유료 가입 완료)** 상태에서, OKR Best Desktop 빌드에 필요한 Apple 관련 작업을 처음부터 끝까지 수행하는 방법을 설명합니다. 2026-04 기준 Apple Developer Portal / App Store Connect UI와 이 저장소 코드 기준값에 맞춰 작성되었습니다.
 
 ---
 
 ## 0. 이 문서로 완료되는 것
 
-이 문서를 끝까지 따라 하면 아래를 완료합니다.
+이 문서를 끝까지 따라 하면 아래가 완료됩니다.
 
-1. Apple Developer 포털에서 팀/권한 상태 확인
-2. Developer ID Application 인증서 발급
-3. `.p12` 인증서 파일 생성
-4. App Store Connect API Key(`.p8`) 생성
-5. GitHub Actions Secrets 등록
-6. 워크플로우 실행으로 서명/노터리 정상 동작 확인
+1. Apple Developer 포털에서 팀/권한 상태 확인 + Team ID 확인
+2. App ID(`OKRBest.Desktop`) 및 App Group 등록
+3. 인증서 3종 발급: Developer ID Application, Developer ID Installer, Mac App Distribution
+4. `.p12` 인증서 파일 2개 생성 (Developer ID용 1개 + MAS용 1개)
+5. App Store Connect API Key(`.p8`) 생성
+6. MAS provisioning profile 생성
+7. GitHub Actions Secrets 등록 (9개)
+8. 워크플로우 실행으로 서명/노터리/MAS 제출 정상 동작 확인
 
 ---
 
@@ -23,32 +25,41 @@
 
 아니요. 개인 유료 가입을 완료했다면 보통 **개인 Team이 이미 존재**합니다.
 
-- 개인 Team으로도 Developer ID 인증서 발급 가능
-- 회사 팀이 필요한 경우만 Organization 전환/신규 등록 진행
+- 개인 Team으로도 Developer ID/MAS 인증서 발급 모두 가능.
+- 회사 팀이 필요한 경우만 Organization 전환/신규 등록을 진행하세요.
 
-### 1.2 이 저장소에서 실제로 쓰는 Apple 관련 Secret
+### 1.2 이 저장소가 쓰는 인증서 3종 개요
 
-`Repository Settings -> Secrets and variables -> Actions`에 등록합니다.
+이 프로젝트는 **두 가지 배포 경로**를 지원하므로, 서로 다른 인증서 3종이 필요합니다.
 
-#### Developer ID (macOS 설치형 빌드)
+| 인증서 | 용도 | 배포 경로 | 들어갈 `.p12` |
+|--------|------|---------|--------------|
+| **Developer ID Application** | DMG/ZIP의 `.app` 서명 | 외부 배포 (웹사이트 다운로드) | Developer ID용 `.p12` (Installer와 같은 파일) |
+| **Developer ID Installer** | DMG/PKG 인스톨러 서명 | 외부 배포 | Developer ID용 `.p12` (Application과 같은 파일) |
+| **Mac App Distribution** | MAS 제출용 `.app` 서명 | Mac App Store | MAS용 `.p12` (별도) |
 
-- `OKRBEST_DESKTOP_MAC_INSTALLER_CSC_KEY_PASSWORD`
-- `OKRBEST_DESKTOP_MAC_INSTALLER_CSC_LINK`
-- `OKRBEST_DESKTOP_MAC_INSTALLER_DMG_PROFILE`
+**실무 팁**: Developer ID Application + Installer 두 인증서를 Keychain에서 **동시에 선택해 하나의 `.p12`로 export**하면 GitHub Secret 한 개(`OKRBEST_DESKTOP_MAC_INSTALLER_CSC_LINK`)로 둘 다 커버됩니다. MAS용은 별도 `.p12`.
 
-참고 워크플로우: [release.yaml](../.github/workflows/release.yaml), [build-for-pr.yml](../.github/workflows/build-for-pr.yml), [nightly-main.yml](../.github/workflows/nightly-main.yml), [nightly-rainforest.yml](../.github/workflows/nightly-rainforest.yml)
+### 1.3 이 저장소가 쓰는 GitHub Secret 목록
 
-#### Notarization / MAS 공통 API Key
+`Repository Settings → Secrets and variables → Actions`에 등록합니다.
 
+**Developer ID (외부 배포 / DMG)**
+- `OKRBEST_DESKTOP_MAC_INSTALLER_CSC_LINK` — Developer ID App+Installer `.p12` base64
+- `OKRBEST_DESKTOP_MAC_INSTALLER_CSC_KEY_PASSWORD` — 위 `.p12` 암호
+- `OKRBEST_DESKTOP_MAC_INSTALLER_DMG_PROFILE` — 선택 (9.2 참조)
+
+**MAS (Mac App Store)**
+- `OKRBEST_DESKTOP_MAC_APP_STORE_CSC_LINK` — Mac App Distribution `.p12` base64
+- `OKRBEST_DESKTOP_MAC_APP_STORE_CSC_KEY_PASSWORD` — 위 `.p12` 암호
+- `OKRBEST_DESKTOP_MAC_APP_STORE_MAS_PROFILE` — MAS `.provisionprofile` base64
+
+**공통 (notarization / App Store Connect API)**
 - `OKRBEST_DESKTOP_MAC_APP_STORE_MACOS_API_KEY_ID`
-- `OKRBEST_DESKTOP_MAC_APP_STORE_MACOS_API_KEY`
+- `OKRBEST_DESKTOP_MAC_APP_STORE_MACOS_API_KEY` — `.p8` 텍스트 원문
 - `OKRBEST_DESKTOP_MAC_APP_STORE_MACOS_API_ISSUER_ID`
 
-#### MAS 전용
-
-- `OKRBEST_DESKTOP_MAC_APP_STORE_MAS_PROFILE`
-- `OKRBEST_DESKTOP_MAC_APP_STORE_CSC_KEY_PASSWORD`
-- `OKRBEST_DESKTOP_MAC_APP_STORE_CSC_LINK`
+참고 워크플로: [release.yaml](../.github/workflows/release.yaml), [release-mas.yaml](../.github/workflows/release-mas.yaml), [build-for-pr.yml](../.github/workflows/build-for-pr.yml), [nightly-main.yml](../.github/workflows/nightly-main.yml), [nightly-rainforest.yml](../.github/workflows/nightly-rainforest.yml)
 
 ---
 
@@ -59,363 +70,450 @@
 - Apple Developer Program 유료 가입 완료
 - Apple ID 2단계 인증(2FA) 활성화
 - `developer.apple.com` 로그인 가능
+- Account Holder 또는 Admin 역할 (Developer ID/Distribution 인증서 발급은 이 역할만 가능)
 
 ### 2.2 로컬(Mac)
 
-- Keychain Access(키체인 접근) 실행 가능
+- Keychain Access(`/Applications/Utilities/Keychain Access.app`) 실행 가능
 - 터미널 사용 가능
-- 보안 저장용 폴더 1개 생성 권장
-
-예시:
-
-```bash
-mkdir -p ~/secure/apple-signing
-chmod 700 ~/secure/apple-signing
-```
+- 보안 저장용 폴더 1개 생성 권장:
+  ```bash
+  mkdir -p ~/secure/apple-signing
+  chmod 700 ~/secure/apple-signing
+  ```
 
 ---
 
-## 3. Apple 포털에서 팀/권한 확인
+## 3. 팀/권한 확인 + App ID/App Group 등록
+
+### 3.1 Team ID 확인 — ⚠️ 가장 먼저 확인
+
+이 저장소의 [resources/mac/entitlements.mas.plist:25,28,30](../resources/mac/entitlements.mas.plist)에 Team ID **`72EQ97MVJ8`**이 하드코딩되어 있습니다. 이 값이 **여러분의 Apple Team ID와 반드시 같아야** MAS 서명이 통과됩니다.
+
+**Team ID 확인 방법:**
 
 1. `https://developer.apple.com/account` 접속
-2. 로그인 후 우상단 프로필/팀 표시 확인
-3. 팀이 여러 개라면 현재 사용할 Team 선택
-4. `Membership` 페이지에서 상태 확인
+2. 좌측 메뉴의 `Membership Details` (이전 명칭: `Membership`) 클릭
+3. `Team ID` 필드의 10자 영숫자 값 확인 (예: `ABCDE12345`)
 
-체크 포인트:
+**Team ID가 `72EQ97MVJ8`과 같으면**: 건드릴 것 없음. 다음 단계로 진행.
 
-- Program 상태가 Active인지
-- Team Name / Team ID 확인
-- 개인 계정이면 본인이 사실상 Account Holder 역할
+**다르면**: 아래 파일의 `72EQ97MVJ8`을 실제 Team ID로 치환한 뒤 커밋합니다.
 
-### 3.1 Bundle ID(App ID) 준비 확인
+```bash
+# 저장소 루트에서
+grep -rn 72EQ97MVJ8 resources/ src/ electron-builder.ts 2>/dev/null
+# → 현재는 resources/mac/entitlements.mas.plist 3군데만 해당
+# 실제 Team ID로 교체 (macOS sed 기준)
+sed -i '' 's/72EQ97MVJ8/<YOUR_TEAM_ID>/g' resources/mac/entitlements.mas.plist
+```
 
-처음 설정하는 계정이라면 앱 식별자도 같이 점검해야 합니다.
+치환 후 반드시 diff 확인. 이 값이 틀리면 나중에 codesign 단계에서 *"The executable was signed with invalid entitlements"* 등으로 실패합니다.
 
-이 프로젝트 기준 권장 Bundle ID:
+### 3.2 App ID 등록
 
-- `com.OKRBest.Desktop` (macOS)
+> **이 프로젝트의 macOS Bundle ID는 `OKRBest.Desktop`입니다** ([electron-builder.ts:25](../electron-builder.ts#L25), [resources/mac/entitlements.mas.plist:28](../resources/mac/entitlements.mas.plist#L28)).
+> `com.OKRBest.Desktop`은 Linux 전용 오버라이드이므로 혼동하지 마세요.
 
-확인/생성 순서:
+등록 순서 (2026-04 기준 공식 UI):
 
-1. `https://developer.apple.com/account/resources/identifiers/list` 이동
-2. `Identifiers` 우측 상단 `+` 클릭
-3. `App IDs` 선택 -> `Continue`
-4. `App` 선택 -> `Continue`
-5. Description 입력 (예: `OKR Best Desktop`)
-6. Bundle ID 선택
-- `Explicit` 선택
-- 값 입력: `com.OKRBest.Desktop`
-7. Capabilities 기본값 유지(초기에는 최소 설정 권장)
-8. `Continue` -> `Register`
+1. `https://developer.apple.com/account/resources` 접속 → `Certificates, Identifiers & Profiles`로 이동
+2. 좌측 사이드바에서 `Identifiers` 클릭
+3. 우상단 `+` 버튼 클릭
+4. `App IDs` 선택 → `Continue`
+5. Type 선택 화면에서 `App` 선택 → `Continue`
+6. `Description` 입력 (예: `OKR Best Desktop`)
+7. **Bundle ID** 섹션에서 `Explicit` 선택, 값 입력: **`OKRBest.Desktop`**
+8. **Capabilities** 체크박스 활성화 — 최소 아래 항목을 켜야 MAS 제출이 통과됩니다 (현 [entitlements.mas.plist](../resources/mac/entitlements.mas.plist) 기준):
+   - App Sandbox
+   - App Groups *(주의: App Group 자체는 3.3에서 별도 등록 필요)*
+   - Hardened Runtime
+   - User Notifications
+9. `Continue` → 요약 확인 → `Register`
 
-주의:
+### 3.3 App Group 등록
 
-- Bundle ID를 나중에 바꾸면 인증서/프로파일/배포 설정이 연쇄적으로 깨질 수 있습니다.
-- 이미 운영 중이면 기존 Bundle ID와 완전히 일치시켜야 합니다.
+entitlements.mas.plist는 App Group `<TEAM_ID>.OKRBest.Desktop`을 참조합니다 ([line 23-26](../resources/mac/entitlements.mas.plist#L23-L26)). 이 App Group을 별도 등록해야 MAS 제출 시 인증서 프로비저닝에서 막히지 않습니다.
 
-### 3.2 Developer ID와 MAS의 차이 (헷갈림 방지)
+1. `Identifiers` 사이드바에서 상단 드롭다운을 `App Groups`로 전환
+2. `+` 클릭
+3. `App Groups` 선택 → `Continue`
+4. `Description`: `OKRBest Desktop Group` 등
+5. `Identifier`: **`72EQ97MVJ8.OKRBest.Desktop`** (3.1에서 Team ID 치환했다면 본인 Team ID 사용)
+6. `Continue` → `Register`
 
-- **Developer ID Application**: 웹 배포(DMG/ZIP)용 코드서명
-- **MAS( Mac App Store )**: App Store 제출용 별도 인증서/프로파일 체계
+### 3.4 App ID에 App Group 연결
 
-즉, Developer ID 발급과 MAS 준비는 별도 작업입니다.
+1. `Identifiers` → 위에서 만든 `OKRBest.Desktop` App ID 클릭
+2. `Capabilities`에서 `App Groups` 행의 `Configure` 버튼 클릭
+3. 3.3에서 등록한 `72EQ97MVJ8.OKRBest.Desktop` 체크
+4. `Continue` → `Save`
 
 ---
 
 ## 4. CSR 생성 (Keychain Access)
 
-Developer ID 인증서 발급 전에 CSR 파일을 만듭니다.
+Apple 인증서 발급 전 CSR 파일을 만듭니다. **모든 인증서 발급마다 같은 CSR을 재사용해도 되고 새로 만들어도 되지만, CSR을 만든 동일 Mac 사용자 계정의 로그인 키체인에서만 개인키에 접근 가능**함을 기억하세요.
 
-1. `Command + Space` -> `키체인 접근` 검색 후 실행
-2. 왼쪽에서 `로그인` 선택
-3. 상단 메뉴바에서 `키체인 접근` -> `인증서 지원` -> `인증 기관에서 인증서 요청...`
-4. 팝업 입력
-
-- User Email Address: Apple ID 이메일
-- Common Name: 식별 가능한 이름 (예: `OKRBest Mac Signing`)
-- CA Email Address: 비워도 됨
-- `디스크에 저장(Saved to disk)` 선택
-
-5. `계속` -> `.certSigningRequest` 저장
+1. `Command + Space` → `키체인 접근` 실행 (영문 메뉴: `Keychain Access`)
+2. 상단 메뉴바: `키체인 접근` → `인증서 지원` → `인증 기관에서 인증서 요청...`
+   (영문: `Keychain Access` → `Certificate Assistant` → `Request a Certificate from a Certificate Authority...`)
+3. 팝업 입력:
+   - **사용자 이메일 주소** / User Email Address: Apple ID 이메일
+   - **일반 이름** / Common Name: 식별용 이름 (예: `OKRBest Mac Signing`)
+   - **CA 이메일 주소** / CA Email Address: 비워둠
+   - **요청 방식**: `디스크에 저장` (Saved to disk)
+4. `계속` → `.certSigningRequest` 저장
 
 권장 저장 위치:
-
 ```text
-~/secure/apple-signing/okrbest-developer-id.csr
+~/secure/apple-signing/okrbest.certSigningRequest
 ```
 
 ---
 
 ## 5. Developer ID Application 인증서 발급
 
-1. `https://developer.apple.com/account/resources/certificates/list` 이동
-2. `Certificates` 우측 상단 `+` 클릭
-3. 유형에서 `Developer ID Application` 선택
-4. `Continue`
-5. `Choose File`로 CSR 업로드
-6. `Continue`
-7. `Download`로 `.cer` 파일 저장
+1. `https://developer.apple.com/account/resources` → `Certificates, Identifiers & Profiles`
+2. 좌측 사이드바 `Certificates` 클릭
+3. 우상단 `+` 클릭
+4. `Software` 그룹에서 **`Developer ID`** 선택 → `Continue`
+5. 하위 선택 화면에서 **`Developer ID Application`** 선택 → `Continue`
+6. `G2 Sub-CA (Xcode 11.4.1 or later)` 선택 (기본값, 변경 불요) → `Continue`
+7. `Choose File`로 4장에서 만든 CSR 업로드 → `Continue`
+8. `Download`로 `.cer` 파일 저장
 
-권장 파일명:
-
+권장 저장 파일명:
 ```text
-DeveloperID_Application_OKRBest.cer
+~/secure/apple-signing/DeveloperID_Application_OKRBest.cer
 ```
 
+9. 다운로드한 `.cer` 더블클릭 → Keychain Access에 설치됨
+10. Keychain Access → 왼쪽 `로그인` → 상단 `내 인증서` → `Developer ID Application: ...` 항목 왼쪽 ▶를 펼쳐 **개인키(키 아이콘)가 함께 있는지 확인**
+
 ---
 
-## 6. 인증서 설치 + p12 내보내기
+## 6. Developer ID Installer 인증서 발급
 
-### 6.1 설치
+DMG/PKG 인스톨러 서명에 필요합니다. 5장과 동일한 CSR 재사용 가능.
 
-1. `.cer` 파일 더블클릭
-2. Keychain Access 열리면 왼쪽 `로그인`, 상단 `내 인증서` 선택
-3. `Developer ID Application: ...` 항목 확인
-4. 항목 왼쪽 화살표를 펼쳐 **개인키(키 아이콘)** 함께 있는지 확인
+1. `Certificates` → `+`
+2. `Software` → `Developer ID` → `Continue`
+3. 하위에서 **`Developer ID Installer`** 선택 → `Continue`
+4. CSR 업로드 → `Download` → 설치
 
-중요:
+권장 파일명:
+```text
+~/secure/apple-signing/DeveloperID_Installer_OKRBest.cer
+```
 
-- 인증서만 있고 개인키가 없으면 `.p12` 내보내기 실패
-- CSR을 만든 **같은 Mac 사용자 계정**에서 설치/내보내기 해야 안전
+설치 후 Keychain Access의 `내 인증서`에 **두 인증서(Application + Installer)가 모두 개인키와 함께 있는지 확인**.
 
-### 6.2 p12 내보내기
+### 6.1 Developer ID용 `.p12` export (두 인증서를 한 파일로)
 
-1. `Developer ID Application: ...` 항목 우클릭
+1. Keychain Access → `로그인` → `내 인증서`
+2. `Developer ID Application: ...` 와 `Developer ID Installer: ...` **두 항목을 Cmd-클릭으로 동시 선택**
+3. 우클릭 → `내보내기 2개 항목... (Export 2 items...)`
+4. 포맷: `개인 정보 교환(.p12)` (Personal Information Exchange)
+5. 저장:
+   ```text
+   ~/secure/apple-signing/DeveloperID_OKRBest.p12
+   ```
+6. **암호 설정** — 이 값이 `OKRBEST_DESKTOP_MAC_INSTALLER_CSC_KEY_PASSWORD` 시크릿이 됩니다. 강한 암호 사용.
+
+---
+
+## 7. Mac App Distribution 인증서 발급 (MAS용)
+
+MAS 제출용 `.app` 서명에 필요합니다.
+
+1. `Certificates` → `+`
+2. `Software` 그룹에서 **`Mac App Distribution`** 선택 → `Continue`
+3. CSR 업로드 → `Download` → 설치
+
+권장 파일명:
+```text
+~/secure/apple-signing/MacAppDistribution_OKRBest.cer
+```
+
+> **참고**: 최근 포털에는 "Apple Distribution"이라는 iOS/macOS 통합 인증서 옵션도 있지만, `electron-builder`의 `mas` 타깃이 내부적으로 `3rd Party Mac Developer Application:`로 시작하는 인증서 subject를 기대하므로 **MAS 전용 `Mac App Distribution`을 쓰는 쪽이 안전**합니다. (Apple Distribution으로도 동작하지만 일부 빌드 로직에서 오판 여지가 있음.)
+
+### 7.1 MAS용 `.p12` export
+
+1. Keychain Access → `내 인증서` → `3rd Party Mac Developer Application: ...` 항목 (위에서 설치된 것) 우클릭
 2. `내보내기...`
-3. 포맷: `Personal Information Exchange (.p12)`
-4. 파일 저장 + 암호 설정
+3. 포맷: `.p12`
+4. 저장:
+   ```text
+   ~/secure/apple-signing/MAS_Distribution_OKRBest.p12
+   ```
+5. 암호 설정 — `OKRBEST_DESKTOP_MAC_APP_STORE_CSC_KEY_PASSWORD`로 사용될 값.
 
-권장:
-
-- 파일: `~/secure/apple-signing/DeveloperID_Application_OKRBest.p12`
-- 암호: 강한 암호 (이 값이 `CSC_KEY_PASSWORD`)
+> MAS 인스톨러(`.pkg`) 서명을 위한 별도 `Mac Installer Distribution` 인증서는 **이 프로젝트에서는 필요 없습니다** — `electron-builder`가 `mas` 타깃에서 pkg 생성 시 자동으로 productbuild 쪽 서명을 처리하며, 추가 인스톨러 인증서를 요구하지 않는 구성입니다. 혹시 향후 빌드 로그에 *"No 3rd Party Mac Developer Installer certificate"* 경고가 뜨면 그때 추가 발급하세요.
 
 ---
 
-## 7. App Store Connect API Key(.p8) 생성
+## 8. App Store Connect API Key(.p8) 생성
 
-노터리/일부 배포 단계에 사용됩니다.
+notarization 및 MAS 업로드(fastlane) 공통으로 사용됩니다.
 
 1. `https://appstoreconnect.apple.com` 로그인
 2. `Users and Access` 클릭
-3. 상단 `Integrations` 탭 클릭
-4. `App Store Connect API`에서 `Team Keys` 선택
-5. `+` 클릭하여 새 Key 생성
-6. 이름 입력 (예: `OKRBest-Desktop-Notary`)
-7. 권한(Role) 선택 (`App Manager` 이상 권장)
+3. 상단 탭에서 **`Integrations`** 선택
+4. 좌측에서 **`Team Keys`** 선택 (Individual Keys 아님 — CI 용도는 Team Keys)
+5. `Generate API Key` 또는 `+` 클릭
+6. `Name`: `OKRBest-Desktop-CI` 등
+7. **`Access`**: `App Manager` 이상 (notarization만 쓸 거라면 `Developer`도 가능하나 MAS 업로드까지 쓰려면 App Manager 권장)
 8. `Generate`
-9. 생성 직후 `.p8` 다운로드 (재다운로드 불가)
+9. **생성 직후 `.p8` 즉시 다운로드** (재다운로드 불가)
 
-기록할 값 3개:
-
-- Key ID
-- Issuer ID
-- `.p8` 파일 내용
-
-권장 저장:
-
+저장:
 ```text
 ~/secure/apple-signing/AuthKey_<KEYID>.p8
 ```
 
+**기록할 값 3개:**
+- **Key ID** (목록의 10자 영숫자)
+- **Issuer ID** (Team Keys 페이지 상단 UUID 형태)
+- **`.p8` 파일 텍스트 원문** (`-----BEGIN PRIVATE KEY-----`부터 `-----END PRIVATE KEY-----`까지 전체)
+
 ---
 
-## 8. GitHub Secrets 등록 (초보자용 클릭 순서)
+## 9. Provisioning Profile 생성
 
-1. GitHub 저장소 열기
-2. `Settings`
-3. 왼쪽 `Secrets and variables` -> `Actions`
-4. `New repository secret`
-5. `Name` / `Secret` 입력 후 저장
+### 9.1 MAS용 Provisioning Profile (필수)
 
-### 8.1 Developer ID 인증서(p12) 등록
+1. `https://developer.apple.com/account/resources/profiles/list` 이동
+2. 우상단 `+` 클릭
+3. `Distribution` 그룹에서 **`Mac App Store`** 선택 → `Continue`
+4. **App ID**에서 3.2에서 만든 `OKRBest.Desktop` 선택 → `Continue`
+5. **Certificate**에서 7장에서 만든 `Mac App Distribution` 인증서 선택 → `Continue`
+6. **Profile Name**: `OKRBest MAS Profile` 등
+7. `Generate` → `Download`
 
-#### A) p12를 Base64 문자열로 변환
+저장:
+```text
+~/secure/apple-signing/mas.provisionprofile
+```
+
+### 9.2 DMG용 Provisioning Profile 정책
+
+이 저장소 워크플로는 `OKRBEST_DESKTOP_MAC_INSTALLER_DMG_PROFILE` 시크릿을 항상 `base64 -D`로 디코드해 `./mac.provisionprofile`로 씁니다 ([nightly-main.yml:189](../.github/workflows/nightly-main.yml#L189), [release.yaml:166](../.github/workflows/release.yaml#L166) 등).
+
+하지만:
+- [electron-builder.ts](../electron-builder.ts)의 `mac` 블록은 `provisioningProfile` 필드를 **사용하지 않습니다** (`mas` 블록만 사용). 즉 `./mac.provisionprofile` 파일은 **실제로 codesign/electron-builder에 전달되지 않습니다**.
+- 또한 **Developer ID 외부 배포는 provisioning profile이 원래 필수가 아닙니다** (Apple 정책).
+
+**권장 처리**:
+- **A (가장 간단)**: 시크릿을 등록하지 않고 비워둠. 워크플로의 `echo $MAC_PROFILE | base64 -D > ./mac.provisionprofile`이 빈 파일을 만드는데, electron-builder가 이 파일을 참조하지 않으므로 무해.
+- **B (결벽적)**: 워크플로에서 해당 디코드 스텝을 삭제. 단 여러 워크플로를 건드려야 하므로 별도 커밋 필요.
+
+당장은 **A로 진행**해도 빌드가 통과합니다.
+
+---
+
+## 10. GitHub Secrets 등록
+
+1. GitHub 저장소 → `Settings` → 왼쪽 `Secrets and variables` → `Actions`
+2. `New repository secret` 클릭 → 이름/값 입력 → `Add secret`
+
+### 10.1 `.p12` 파일을 base64 문자열로 변환
 
 ```bash
 cd ~/secure/apple-signing
-base64 -i DeveloperID_Application_OKRBest.p12 | tr -d '\n' > csc_link_base64.txt
+
+# Developer ID용 (App + Installer 합본)
+base64 -i DeveloperID_OKRBest.p12 | tr -d '\n' | pbcopy
+# → 클립보드에 있는 값을 OKRBEST_DESKTOP_MAC_INSTALLER_CSC_LINK에 붙여넣기
+
+# MAS용
+base64 -i MAS_Distribution_OKRBest.p12 | tr -d '\n' | pbcopy
+# → OKRBEST_DESKTOP_MAC_APP_STORE_CSC_LINK
 ```
 
-`csc_link_base64.txt` 내용을 복사해서 아래 Secret에 넣습니다.
+`pbcopy` 대신 파일로 저장하고 싶으면 `> csc_link.txt`처럼 리다이렉트하세요.
 
-- `OKRBEST_DESKTOP_MAC_INSTALLER_CSC_LINK` = Base64 문자열
-- `OKRBEST_DESKTOP_MAC_INSTALLER_CSC_KEY_PASSWORD` = p12 내보낼 때 설정한 암호
-
-### 8.2 Apple API Key 등록
-
-- `OKRBEST_DESKTOP_MAC_APP_STORE_MACOS_API_KEY_ID` = Key ID
-- `OKRBEST_DESKTOP_MAC_APP_STORE_MACOS_API_ISSUER_ID` = Issuer ID
-- `OKRBEST_DESKTOP_MAC_APP_STORE_MACOS_API_KEY` = `.p8` 파일 텍스트 원문
-
-주의:
-
-- `OKRBEST_DESKTOP_MAC_APP_STORE_MACOS_API_KEY`는 **Base64가 아니라 .p8 원문 텍스트**를 넣어야 합니다.
-- 워크플로우가 이 값을 그대로 `./key.p8` 파일로 씁니다.
-
-### 8.3 프로비저닝 프로파일 등록
-
-이 저장소 워크플로우는 현재 `MAC_PROFILE`/`MAS_PROFILE`를 복원하는 단계를 포함합니다.
-
-#### 먼저: 프로파일 파일 구하기
-
-##### A) MAS 프로파일(`mas.provisionprofile`) 생성
-
-1. `https://developer.apple.com/account/resources/profiles/list` 이동
-2. `Profiles` 우측 상단 `+` 클릭
-3. `Distribution` -> `Mac App Store` 선택 -> `Continue`
-4. App ID에서 `com.OKRBest.Desktop` 선택
-5. 배포 인증서(MAS용) 선택
-6. Profile Name 입력 (예: `OKRBest MAS Profile`)
-7. `Generate` -> `Download`
-
-##### B) DMG 프로파일(`mac.provisionprofile`) 관련
-
-- 일반적으로 Developer ID 배포(DMG/ZIP)는 별도 provisioning profile이 필수가 아닙니다.
-- 다만 이 저장소 워크플로우는 `OKRBEST_DESKTOP_MAC_INSTALLER_DMG_PROFILE`를 복원하는 단계를 포함합니다.
-- 따라서 현재 운영 중인 값이 있으면 **기존 프로파일을 그대로 재사용**하는 방식이 가장 안전합니다.
-- 신규 생성이 필요한 경우, 프로젝트 운영자와 정책(실제로 필요한지, 어떤 타입을 쓰는지)을 먼저 확정한 뒤 진행하세요.
-
-#### Developer ID용 DMG 프로파일
+### 10.2 Provisioning Profile base64 변환
 
 ```bash
-base64 -i mac.provisionprofile | tr -d '\n'
+base64 -i mas.provisionprofile | tr -d '\n' | pbcopy
+# → OKRBEST_DESKTOP_MAC_APP_STORE_MAS_PROFILE
 ```
 
-- 결과값 -> `OKRBEST_DESKTOP_MAC_INSTALLER_DMG_PROFILE`
+DMG profile은 9.2 권장안 A에 따라 등록 생략.
 
-#### MAS용 프로파일
+### 10.3 최종 시크릿 체크리스트
 
-```bash
-base64 -i mas.provisionprofile | tr -d '\n'
-```
+Settings → Secrets and variables → Actions에서:
 
-- 결과값 -> `OKRBEST_DESKTOP_MAC_APP_STORE_MAS_PROFILE`
+- [ ] `OKRBEST_DESKTOP_MAC_INSTALLER_CSC_LINK` — Developer ID `.p12` base64
+- [ ] `OKRBEST_DESKTOP_MAC_INSTALLER_CSC_KEY_PASSWORD` — 6.1에서 설정한 암호
+- [ ] `OKRBEST_DESKTOP_MAC_APP_STORE_CSC_LINK` — MAS `.p12` base64
+- [ ] `OKRBEST_DESKTOP_MAC_APP_STORE_CSC_KEY_PASSWORD` — 7.1에서 설정한 암호
+- [ ] `OKRBEST_DESKTOP_MAC_APP_STORE_MAS_PROFILE` — MAS profile base64
+- [ ] `OKRBEST_DESKTOP_MAC_APP_STORE_MACOS_API_KEY_ID` — 8장 Key ID
+- [ ] `OKRBEST_DESKTOP_MAC_APP_STORE_MACOS_API_KEY` — `.p8` **텍스트 원문** (base64 변환 금지)
+- [ ] `OKRBEST_DESKTOP_MAC_APP_STORE_MACOS_API_ISSUER_ID` — 8장 Issuer ID
+- [ ] `OKRBEST_DESKTOP_MAC_INSTALLER_DMG_PROFILE` — 9.2 권장안 A면 등록 안 함
+
+> ⚠️ `OKRBEST_DESKTOP_MAC_APP_STORE_MACOS_API_KEY`는 **base64가 아니라 `.p8` 원문 텍스트**를 넣어야 합니다. 워크플로가 이 값을 그대로 `./key.p8` 파일로 씁니다 ([nightly-main.yml:190](../.github/workflows/nightly-main.yml#L190) `zsh -c 'echo -n $APPLE_API_KEY_RAW > ./key.p8'`).
 
 ---
 
-## 9. 로컬 상태 점검 명령어
+## 11. 로컬 상태 점검 명령어
 
-### 9.1 코드서명 인증서 인식 확인
+### 11.1 코드서명 인증서 인식 확인
 
 ```bash
 security find-identity -v -p codesigning
 ```
 
-정상 예시(유사 문구):
-
+정상 출력 예시(3개 모두 보여야 함):
 ```text
-Developer ID Application: <Your Name or Org>
+  1) XXXXXXXXXXXX "Developer ID Application: <Your Name> (72EQ97MVJ8)"
+  2) YYYYYYYYYYYY "Developer ID Installer: <Your Name> (72EQ97MVJ8)"
+  3) ZZZZZZZZZZZZ "3rd Party Mac Developer Application: <Your Name> (72EQ97MVJ8)"
+     3 valid identities found
 ```
 
-### 9.2 Keychain에서 인증서/개인키 페어 확인
+Team ID 괄호 부분이 여러분의 실제 Team ID와 일치하는지 확인.
 
-- 키체인 접근 -> 로그인 -> 내 인증서
-- `Developer ID Application` 항목 아래에 키 아이콘이 있어야 함
+### 11.2 `.p12` 자체 무결성 확인
+
+```bash
+openssl pkcs12 -in ~/secure/apple-signing/DeveloperID_OKRBest.p12 -info -noout -passin pass:"<암호>"
+```
+
+에러 없이 끝나면 파일 정상.
+
+### 11.3 Provisioning Profile 내용 확인
+
+```bash
+security cms -D -i ~/secure/apple-signing/mas.provisionprofile | grep -A1 "AppIDName\|application-identifier\|TeamIdentifier"
+```
+
+`application-identifier`가 `<TEAM_ID>.OKRBest.Desktop`이어야 함.
 
 ---
 
-## 10. GitHub Actions 검증 순서
+## 12. GitHub Actions 검증 순서
 
-### 10.1 가장 안전한 검증 순서
+### 12.1 가장 안전한 검증 순서 (PR 먼저)
 
-1. PR 생성
+1. 작업 브랜치에 PR 생성
 2. PR에 `Build Apps for PR` 라벨 추가
-3. `build-for-pr.yml` 실행 확인
-4. macOS build job 로그에서 서명/패키징 성공 확인
+3. [build-for-pr.yml](../.github/workflows/build-for-pr.yml) 실행 확인
+4. macOS build job 로그에서 `codesign` / `signing app bundle` 성공 메시지 확인
 
-### 10.2 정식/나이틀리 검증
+### 12.2 Nightly / Release 검증
 
-- `nightly-main.yml` 또는 릴리스 태그 기반 `release.yaml` 실행
-- macOS job 성공 + artifacts 생성 + 업로드 성공 확인
+- `workflow_dispatch`로 [nightly-builds.yaml](../.github/workflows/nightly-builds.yaml) 수동 트리거 또는 릴리스 태그로 [release.yaml](../.github/workflows/release.yaml) 실행
+- macOS job 성공 + `.dmg` / `.pkg` 산출 + S3 업로드까지 모두 녹색 확인
+- Notarization은 비동기이므로 로그에 `Notarization done` 까지 보이는지 체크
 
 ---
 
-## 11. 자주 발생하는 문제와 해결
+## 13. 자주 발생하는 문제와 해결
 
-### 11.1 "No identity found" / 서명 인증서를 못 찾음
+### 13.1 "No identity found" / 서명 인증서를 못 찾음
 
 원인:
-
-- 인증서 설치는 됐지만 개인키 없음
-- 다른 Mac/다른 사용자 계정에서 CSR 생성
+- `.p12` 내보내기 시 개인키 누락
+- 다른 Mac/다른 macOS 사용자 계정에서 CSR 생성 → 개인키 없는 환경에서 내보내기
 
 해결:
+- CSR 생성한 동일 macOS 사용자 계정의 Keychain Access에서 다시 내보내기
+- `내 인증서` 목록에서 인증서 펼쳤을 때 키 아이콘이 함께 있는지 확인
 
-- CSR 생성한 동일 계정에서 다시 발급/설치
-- 내 인증서에서 개인키 포함 여부 확인
-
-### 11.2 `CSC_LINK` 관련 오류
+### 13.2 `CSC_LINK` 관련 오류 / "not a file"
 
 원인:
-
 - Base64 문자열에 줄바꿈/공백 포함
-- 잘못된 p12 파일 업로드
+- 시크릿이 빈 문자열 → electron-builder가 리포 루트로 경로 해석 → `⨯ ... not a file`
 
 해결:
+- `base64 -i ... | tr -d '\n'` 로 한 줄 문자열 생성
+- 시크릿이 실제로 등록됐는지 GitHub Settings에서 다시 확인 (이름 오타 포함)
 
-- `tr -d '\n'`로 한 줄 문자열 생성
-- p12 재내보내기 후 다시 등록
-
-### 11.3 API Key 관련 노터리 실패
+### 13.3 "The executable was signed with invalid entitlements" / MAS 검증 실패
 
 원인:
-
-- Key ID/Issuer ID/키 내용 불일치
-- `.p8` 내용이 손상(복사 중 누락)
+- 3.1의 Team ID 치환 누락: entitlements.mas.plist의 Team ID prefix가 실제 인증서 Team ID와 다름
+- App Group을 App ID에 연결하지 않음
 
 해결:
+- `resources/mac/entitlements.mas.plist`의 Team ID 세 군데를 실제 값으로 수정
+- 3.4 다시 수행 (App Group을 App ID에 Configure)
 
-- 3개 값을 같은 키 세트로 재입력
-- `.p8` 전체 원문(헤더/본문/푸터) 재복사
-
-### 11.4 프로비저닝 프로파일 디코드 실패
+### 13.4 API Key 관련 notarization 실패
 
 원인:
-
-- Base64 값 누락
-- 잘못된 프로파일 파일
+- Key ID / Issuer ID / `.p8` 본문 중 하나가 다른 세트 값
+- `.p8` 복사 중 `-----BEGIN PRIVATE KEY-----` / `-----END PRIVATE KEY-----` 라인 누락
 
 해결:
+- 세 값을 **같은 키에서 한 번에 다시** 복사해 시크릿 재등록
+- `.p8` 원문 전체(헤더/본문/푸터/개행 포함) 그대로 붙여넣기
 
-- 원본 파일로 다시 Base64 생성 후 Secret 업데이트
+### 13.5 Provisioning Profile 디코드 실패
+
+원인:
+- Base64 변환 시 줄바꿈/공백 혼입
+- 프로파일 파일이 실제로 `.provisionprofile` 바이너리가 아님(잘못된 파일)
+
+해결:
+- 원본 프로파일 파일로 다시 `base64 -i ... | tr -d '\n'` 실행 후 시크릿 갱신
+- `security cms -D -i <file>` 로 파일 내용이 유효한 plist인지 검증
 
 ---
 
-## 12. 보안 운영 수칙 (중요)
+## 14. 보안 운영 수칙
 
-1. 인증서 원본 파일(.p12/.p8)은 Git에 절대 커밋 금지
-2. 로컬 보안 폴더(`~/secure/apple-signing`) 권한 제한 유지
-3. 팀원 공유는 Secret Manager(1Password/Vault)로만 전달
-4. 인력 변경 시 인증서/키 폐기 및 재발급
-5. 만료 30일 전 갱신 일정 등록
+1. 인증서 원본 파일(`.p12`, `.p8`)은 **Git에 절대 커밋 금지** ([.gitignore:26](../.gitignore#L26)에서 `*.provisionprofile`은 이미 제외됨)
+2. `~/secure/apple-signing` 권한을 700으로 유지
+3. 팀원 공유는 Secret Manager(1Password, HashiCorp Vault 등)로만
+4. 인력 변경 시 관련 인증서·키 즉시 폐기 및 재발급
+5. 인증서 만료 **30일 전 갱신** 일정 등록 (Developer ID는 5년, Mac App Distribution은 1년, CA/Browser Forum 규정에 따라 단축될 수 있음)
+6. App Store Connect API Key는 **Revoke** 버튼으로 즉시 비활성화 가능 — 유출 의심 시 바로 Revoke 후 재발급
 
 ---
 
-## 13. 운영 체크리스트
+## 15. 운영 체크리스트
 
 ### 최초 1회
 
-- [ ] 개인 Team/멤버십 Active 확인
+- [ ] Apple Developer Membership Active + Team ID 확인
+- [ ] `resources/mac/entitlements.mas.plist`의 Team ID가 실제 값과 일치
+- [ ] App ID `OKRBest.Desktop` 등록 + Capabilities 활성화
+- [ ] App Group `<TEAM_ID>.OKRBest.Desktop` 등록 + App ID에 연결
 - [ ] CSR 생성
-- [ ] Developer ID Application 발급
-- [ ] p12 내보내기 + 암호 생성
-- [ ] App Store Connect API Key 발급(.p8)
-- [ ] GitHub Secrets 등록
+- [ ] Developer ID Application 인증서 발급 및 설치
+- [ ] Developer ID Installer 인증서 발급 및 설치
+- [ ] Mac App Distribution 인증서 발급 및 설치
+- [ ] Developer ID용 `.p12` export (App+Installer 합본)
+- [ ] MAS용 `.p12` export
+- [ ] App Store Connect API Key(`.p8`) 생성 + Key ID/Issuer ID 기록
+- [ ] MAS Provisioning Profile 생성
+- [ ] GitHub Secrets 8~9개 등록
 - [ ] PR 빌드로 macOS 서명 검증
 
-### 정기 점검(월 1회 권장)
+### 정기 점검 (월 1회 권장)
 
-- [ ] 인증서 만료일 확인
-- [ ] API Key 접근 권한 검토
-- [ ] Actions 실패 로그에서 서명 관련 경고 확인
+- [ ] 인증서 만료일 확인 (Keychain Access에서 각 인증서 Info 창)
+- [ ] API Key 접근 권한 / 활성 상태 검토
+- [ ] Actions 실패 로그에서 `codesign` / `notarization` 관련 경고 확인
 
 ---
 
-## 14. 참고 문서
+## 16. 참고 문서
 
 - [CI/CD 가이드](./CI_CD.md)
 - [개발 환경 설정](./DEVELOPMENT_SETUP.md)
-- Apple Developer: https://developer.apple.com
-- App Store Connect: https://appstoreconnect.apple.com
+- [배포 환경 설정](./DEPLOYMENT_ENVIRONMENT_SETUP.md)
+- [Certum SimplySign 가이드](./Certum-SimplySign.md) — Windows 코드 서명
+- Apple Developer Portal: <https://developer.apple.com>
+- App Store Connect: <https://appstoreconnect.apple.com>
+- Apple 공식 — [App ID 등록](https://developer.apple.com/help/account/identifiers/register-an-app-id/)
+- Apple 공식 — [CSR 생성](https://developer.apple.com/help/account/certificates/create-a-certificate-signing-request/)
+- Apple 공식 — [Developer ID 인증서 생성](https://developer.apple.com/help/account/certificates/create-developer-id-certificates)
+- Apple 공식 — [App Store Connect API Key 생성](https://developer.apple.com/documentation/appstoreconnectapi/creating-api-keys-for-app-store-connect-api)
