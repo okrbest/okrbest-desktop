@@ -163,11 +163,13 @@ function Wait-ForCodeSigningCert {
 
 # === 4. SimplySign Desktop 설치 ==============================================
 # Certum 공식 서포트 페이지(https://support.certum.eu/en/cert-offer-software-and-libraries/)에서
-# 게시하는 버전 고정 URL을 사용한다. 과거 `simplysign.certum.eu/app/...-latest.exe` 경로는 폐기되어
-# 현재 HTML 랜딩 페이지로 리다이렉트되므로 리다이렉트 허용은 금지하고 PE 시그니처까지 검증한다.
+# 게시하는 버전 고정 URL을 사용한다. `.exe` 대신 MSI 변형을 쓰는 이유:
+#   (1) `.exe` 인스톨러의 `/S` 같은 비표준 silent 스위치가 인식되지 않으면 설치가 조용히
+#       중단되어 "Executable not found" 단계에서만 비로소 실패가 드러난다.
+#   (2) `msiexec /qn`은 표준 silent 설치를 보장하고 exit code가 명확해 실패 감지가 즉시 가능하다.
 $SimplySignVersion = "9.4.2.86"
-$SimplySignUrl = "https://files.certum.eu/software/SimplySignDesktop/Windows/$SimplySignVersion/SimplySignDesktop-$SimplySignVersion-win-64-bit.exe"
-$InstallerPath = "$env:TEMP\SimplySignDesktop-$SimplySignVersion-win-64-bit.exe"
+$SimplySignUrl = "https://files.certum.eu/software/SimplySignDesktop/Windows/$SimplySignVersion/SimplySignDesktop-$SimplySignVersion-64-bit-en.msi"
+$InstallerPath = "$env:TEMP\SimplySignDesktop-$SimplySignVersion-64-bit-en.msi"
 $SimplySignExe = "C:\Program Files (x86)\Certum\SimplySign Desktop\SimplySign Desktop.exe"
 
 if (-not (Test-Path $SimplySignExe)) {
@@ -184,21 +186,31 @@ if (-not (Test-Path $SimplySignExe)) {
         }
     }
 
-    $head = [byte[]]::new(2)
+    # MSI는 OLE compound document이므로 매직 바이트가 D0 CF 11 E0 이어야 한다.
+    # 다운로드가 HTML 오류 페이지로 대체되면 여기서 터진다.
+    $head = [byte[]]::new(4)
     $fs = [System.IO.File]::OpenRead($InstallerPath)
-    try { [void]$fs.Read($head, 0, 2) } finally { $fs.Close() }
-    if ($head[0] -ne 0x4D -or $head[1] -ne 0x5A) {
-        throw "Downloaded file is not a valid PE executable. URL may be outdated: $SimplySignUrl"
+    try { [void]$fs.Read($head, 0, 4) } finally { $fs.Close() }
+    if ($head[0] -ne 0xD0 -or $head[1] -ne 0xCF -or $head[2] -ne 0x11 -or $head[3] -ne 0xE0) {
+        throw "Downloaded file is not a valid MSI package. URL may be outdated: $SimplySignUrl"
     }
 
-    Write-Host "Installing SimplySign Desktop..."
-    Start-Process -FilePath $InstallerPath -ArgumentList "/S" -Wait -NoNewWindow
+    Write-Host "Installing SimplySign Desktop via msiexec..."
+    $proc = Start-Process -FilePath "msiexec.exe" `
+        -ArgumentList "/i", "`"$InstallerPath`"", "/qn", "/norestart" `
+        -Wait -PassThru -NoNewWindow
+    if ($proc.ExitCode -ne 0) {
+        throw "msiexec failed with exit code $($proc.ExitCode). Check %TEMP%\MSI*.log for details."
+    }
 
     if (-not (Test-Path $SimplySignExe)) {
-        # 대체 경로 시도
-        $altPath = "C:\Program Files\Certum\SimplySign Desktop\SimplySign Desktop.exe"
-        if (Test-Path $altPath) {
-            $SimplySignExe = $altPath
+        # 설치 경로가 변동됐을 수 있으니 Program Files 전역에서 탐색
+        $found = Get-ChildItem -Path "C:\Program Files", "C:\Program Files (x86)" `
+            -Filter "SimplySign Desktop.exe" -Recurse -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+        if ($found) {
+            $SimplySignExe = $found.FullName
+            Write-Host "SimplySign Desktop found at: $SimplySignExe"
         } else {
             throw "SimplySign Desktop installation failed. Executable not found."
         }
