@@ -170,9 +170,30 @@ function Wait-ForCodeSigningCert {
 $SimplySignVersion = "9.4.2.86"
 $SimplySignUrl = "https://files.certum.eu/software/SimplySignDesktop/Windows/$SimplySignVersion/SimplySignDesktop-$SimplySignVersion-64-bit-en.msi"
 $InstallerPath = "$env:TEMP\SimplySignDesktop-$SimplySignVersion-64-bit-en.msi"
-$SimplySignExe = "C:\Program Files (x86)\Certum\SimplySign Desktop\SimplySign Desktop.exe"
 
-if (-not (Test-Path $SimplySignExe)) {
+# 9.4.x부터 GUI 런처 파일명이 `SimplySign Desktop.exe`(공백 포함)에서 `SimplySignDesktop.exe`
+# (공백 없음)로 변경됨. 신버전을 우선 탐색하고 구버전을 폴백으로 유지한다.
+# `proCertumSmartSign.exe`는 보조 도구(53KB)이므로 후보에서 제외.
+$SimplySignExeNames = @('SimplySignDesktop.exe', 'SimplySign Desktop.exe')
+$SimplySignDefaultDirs = @(
+    'C:\Program Files\Certum\SimplySign Desktop',
+    'C:\Program Files (x86)\Certum\SimplySign Desktop'
+)
+
+function Find-SimplySignExe {
+    foreach ($dir in $SimplySignDefaultDirs) {
+        if (-not (Test-Path $dir)) { continue }
+        foreach ($name in $SimplySignExeNames) {
+            $p = Join-Path $dir $name
+            if (Test-Path $p) { return $p }
+        }
+    }
+    return $null
+}
+
+$SimplySignExe = Find-SimplySignExe
+
+if (-not $SimplySignExe) {
     Write-Host "Downloading SimplySign Desktop $SimplySignVersion..."
     $maxAttempts = 3
     for ($i = 1; $i -le $maxAttempts; $i++) {
@@ -206,11 +227,10 @@ if (-not (Test-Path $SimplySignExe)) {
         throw "msiexec failed with exit code $($proc.ExitCode)."
     }
 
-    if (-not (Test-Path $SimplySignExe)) {
-        # MSI가 per-user install 또는 비표준 경로로 들어갔을 가능성이 있으므로 단계적으로 탐색.
-        $resolved = $null
+    $SimplySignExe = Find-SimplySignExe
 
-        # 1) 언인스톨 레지스트리에서 SimplySign 등록 정보 확인 (InstallLocation 신뢰 가능)
+    if (-not $SimplySignExe) {
+        # 기본 경로에서 못 찾았으면 레지스트리 InstallLocation 기준으로 다시 탐색.
         $uninstallRoots = @(
             'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
             'HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*',
@@ -218,18 +238,21 @@ if (-not (Test-Path $SimplySignExe)) {
         )
         foreach ($root in $uninstallRoots) {
             $entries = Get-ItemProperty $root -ErrorAction SilentlyContinue |
-                Where-Object { $_.DisplayName -like '*SimplySign*' }
+                Where-Object { $_.DisplayName -like '*SimplySign*' -or $_.DisplayName -like '*SmartSign*' }
             foreach ($entry in $entries) {
                 if ($entry.InstallLocation -and (Test-Path $entry.InstallLocation)) {
-                    $candidate = Join-Path $entry.InstallLocation 'SimplySign Desktop.exe'
-                    if (Test-Path $candidate) { $resolved = $candidate; break }
+                    foreach ($name in $SimplySignExeNames) {
+                        $cand = Join-Path $entry.InstallLocation $name
+                        if (Test-Path $cand) { $SimplySignExe = $cand; break }
+                    }
                 }
+                if ($SimplySignExe) { break }
             }
-            if ($resolved) { break }
+            if ($SimplySignExe) { break }
         }
 
-        # 2) 기본 경로 외 사용자 폴더까지 포괄 탐색
-        if (-not $resolved) {
+        # 그래도 못 찾으면 Program Files / 사용자 폴더 재귀 탐색 (두 이름 모두).
+        if (-not $SimplySignExe) {
             $searchRoots = @(
                 'C:\Program Files',
                 'C:\Program Files (x86)',
@@ -238,29 +261,35 @@ if (-not (Test-Path $SimplySignExe)) {
                 $env:ProgramData
             ) | Where-Object { $_ -and (Test-Path $_) }
             foreach ($root in $searchRoots) {
-                $found = Get-ChildItem -Path $root -Filter 'SimplySign Desktop.exe' `
-                    -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-                if ($found) { $resolved = $found.FullName; break }
+                foreach ($name in $SimplySignExeNames) {
+                    $found = Get-ChildItem -Path $root -Filter $name `
+                        -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+                    if ($found) { $SimplySignExe = $found.FullName; break }
+                }
+                if ($SimplySignExe) { break }
             }
         }
 
-        if ($resolved) {
-            $SimplySignExe = $resolved
-            Write-Host "SimplySign Desktop found at: $SimplySignExe"
-        } else {
+        if (-not $SimplySignExe) {
             Write-Host "--- Registered SimplySign/Certum uninstall entries ---"
             foreach ($root in $uninstallRoots) {
                 Get-ItemProperty $root -ErrorAction SilentlyContinue |
-                    Where-Object { $_.DisplayName -like '*SimplySign*' -or $_.Publisher -like '*Certum*' -or $_.Publisher -like '*Asseco*' } |
+                    Where-Object { $_.DisplayName -like '*SimplySign*' -or $_.DisplayName -like '*SmartSign*' -or $_.Publisher -like '*Certum*' -or $_.Publisher -like '*Asseco*' } |
                     Select-Object DisplayName, DisplayVersion, InstallLocation, Publisher, UninstallString |
                     Format-List
+            }
+            Write-Host "--- .exe files under C:\Program Files\Certum\SimplySign Desktop ---"
+            $probeDir = 'C:\Program Files\Certum\SimplySign Desktop'
+            if (Test-Path $probeDir) {
+                Get-ChildItem -Path $probeDir -Filter '*.exe' -Recurse -ErrorAction SilentlyContinue |
+                    ForEach-Object { Write-Host "  $($_.FullName)" }
             }
             Write-Host "--- msiexec install log (tail 200 lines) ---"
             if (Test-Path $msiLog) { Get-Content $msiLog -Tail 200 | ForEach-Object { Write-Host $_ } }
             throw "SimplySign Desktop installation failed. Executable not found."
         }
     }
-    Write-Host "SimplySign Desktop installed successfully."
+    Write-Host "SimplySign Desktop installed at: $SimplySignExe"
 } else {
     Write-Host "SimplySign Desktop already installed."
 }
