@@ -10,7 +10,7 @@
 
 1. Apple Developer 포털에서 팀/권한 상태 확인 + Team ID 확인
 2. App ID(`OKRBest.Desktop`) 등록
-3. 인증서 3종 발급: Developer ID Application, Developer ID Installer, Mac App Distribution
+3. 인증서 4종 발급: Developer ID Application, Developer ID Installer, Mac App Distribution, Mac Installer Distribution
 4. `.p12` 인증서 파일 2개 생성 (Developer ID용 1개 + MAS용 1개)
 5. App Store Connect API Key(`.p8`) 생성
 6. MAS provisioning profile 생성
@@ -28,17 +28,20 @@
 - 개인 Team으로도 Developer ID/MAS 인증서 발급 모두 가능.
 - 회사 팀이 필요한 경우만 Organization 전환/신규 등록을 진행하세요.
 
-### 1.2 이 저장소가 쓰는 인증서 3종 개요
+### 1.2 이 저장소가 쓰는 인증서 4종 개요
 
-이 프로젝트는 **두 가지 배포 경로**를 지원하므로, 서로 다른 인증서 3종이 필요합니다.
+이 프로젝트는 **두 가지 배포 경로**를 지원하므로, 서로 다른 인증서 4종이 필요합니다.
 
 | 인증서 | 용도 | 배포 경로 | 들어갈 `.p12` |
 |--------|------|---------|--------------|
 | **Developer ID Application** | DMG/ZIP의 `.app` 서명 | 외부 배포 (웹사이트 다운로드) | Developer ID용 `.p12` (Installer와 같은 파일) |
 | **Developer ID Installer** | DMG/PKG 인스톨러 서명 | 외부 배포 | Developer ID용 `.p12` (Application과 같은 파일) |
-| **Mac App Distribution** | MAS 제출용 `.app` 서명 | Mac App Store | MAS용 `.p12` (별도) |
+| **Mac App Distribution** | MAS 제출용 `.app` 서명 | Mac App Store | MAS용 `.p12` (Installer와 같은 파일) |
+| **Mac Installer Distribution** | MAS 제출용 `.pkg` 인스톨러 서명 | Mac App Store | MAS용 `.p12` (Application과 같은 파일) |
 
-**실무 팁**: Developer ID Application + Installer 두 인증서를 Keychain에서 **동시에 선택해 하나의 `.p12`로 export**하면 GitHub Secret 한 개(`OKRBEST_DESKTOP_MAC_INSTALLER_CSC_LINK`)로 둘 다 커버됩니다. MAS용은 별도 `.p12`.
+**실무 팁**: 같은 경로에 속하는 두 인증서(Application+Installer 쌍)를 Keychain에서 **동시에 선택해 하나의 `.p12`로 export**하면 GitHub Secret 한 개로 둘 다 커버됩니다.
+- Developer ID용 p12 → `OKRBEST_DESKTOP_MAC_INSTALLER_CSC_LINK`
+- MAS용 p12 → `OKRBEST_DESKTOP_MAC_APP_STORE_CSC_LINK`
 
 ### 1.3 이 저장소가 쓰는 GitHub Secret 목록
 
@@ -158,7 +161,7 @@ sed -i '' 's/72EQ97MVJ8/<YOUR_TEAM_ID>/g' resources/mac/entitlements.mas.plist
 
 Apple 인증서 발급 전 CSR 파일을 만듭니다.
 
-> ⚠️ **CSR은 인증서마다 따로 만들어야 합니다.** Apple 공식 문서: *"A unique CSR is required for each certificate."* 동일 CSR을 다시 업로드하면 *"The uploaded CSR file has already been used to generate another certificate"* 에러가 납니다. 특히 Developer ID Application과 Developer ID Installer는 서로 다른 public key를 요구합니다. 따라서 이 프로젝트 기준으로 **CSR을 총 3번 생성**해야 합니다 (5장·6장·7장용). CSR을 만든 동일 Mac 사용자 계정의 로그인 키체인에서만 개인키에 접근 가능함도 기억하세요.
+> ⚠️ **CSR은 인증서마다 따로 만들어야 합니다.** Apple 공식 문서: *"A unique CSR is required for each certificate."* 동일 CSR을 다시 업로드하면 *"The uploaded CSR file has already been used to generate another certificate"* 에러가 납니다. 특히 Application 계열과 Installer 계열은 서로 다른 public key를 요구합니다. 따라서 이 프로젝트 기준으로 **CSR을 총 4번 생성**해야 합니다 (5장·6장·7.1장·7.2장용). CSR을 만든 동일 Mac 사용자 계정의 로그인 키체인에서만 개인키에 접근 가능함도 기억하세요.
 >
 > (예외: 기존 **같은 종류** 인증서를 갱신할 때는 이전 CSR 재사용 가능.)
 
@@ -169,14 +172,15 @@ Apple 인증서 발급 전 CSR 파일을 만듭니다.
    (영문: `Keychain Access` → `Certificate Assistant` → `Request a Certificate from a Certificate Authority...`)
 3. 팝업 입력:
    - **사용자 이메일 주소** / User Email Address: Apple ID 이메일
-   - **일반 이름** / Common Name: 식별용 이름. **CSR마다 다른 값 권장** — 예: `OKRBest DevID App`, `OKRBest DevID Installer`, `OKRBest MAS Distribution`
+   - **일반 이름** / Common Name: 식별용 이름. **CSR마다 다른 값 권장** — 예: `OKRBest DevID App`, `OKRBest DevID Installer`, `OKRBest MAS App`, `OKRBest MAS Installer`
    - **CA 이메일 주소** / CA Email Address: 비워둠
    - **요청 방식**: `디스크에 저장` (Saved to disk)
 4. `계속` → `.certSigningRequest` 저장 — 파일명에 용도를 명시하면 혼동을 줄일 수 있습니다:
    ```text
    ~/secure/apple-signing/okrbest-devid-app.certSigningRequest       # 5장에서 사용
    ~/secure/apple-signing/okrbest-devid-installer.certSigningRequest # 6장에서 사용
-   ~/secure/apple-signing/okrbest-mas.certSigningRequest             # 7장에서 사용
+   ~/secure/apple-signing/okrbest-mas-app.certSigningRequest         # 7.1장에서 사용
+   ~/secure/apple-signing/okrbest-mas-installer.certSigningRequest   # 7.2장에서 사용
    ```
    필요 시점마다 이 단계를 재실행해 해당 CSR을 만들면 됩니다. 모두 미리 만들어 두고 순서대로 업로드해도 됩니다.
 
@@ -235,35 +239,51 @@ DMG/PKG 인스톨러 서명에 필요합니다.
 
 ---
 
-## 7. Mac App Distribution 인증서 발급 (MAS용)
+## 7. MAS용 인증서 2종 발급 (App + Installer)
 
-MAS 제출용 `.app` 서명에 필요합니다.
+MAS 제출은 `.app` 서명 **그리고** `.pkg` 인스톨러 서명 두 가지를 모두 요구하므로 인증서 2종이 필요합니다. `electron-builder`가 `mas` 타깃에서 두 인증서(`3rd Party Mac Developer Application`, `3rd Party Mac Developer Installer`)를 모두 Keychain에서 찾습니다 — 하나라도 없으면 *"Cannot find valid '3rd Party Mac Developer Installer' identity to sign MAS installer"* 에러로 빌드가 실패합니다.
 
-> ⚠️ 5·6장에서 쓴 CSR은 **재사용할 수 없습니다**. 4장을 다시 실행해 **세 번째 CSR**(`okrbest-mas.certSigningRequest`)을 만드세요.
+### 7.1 Mac App Distribution 인증서 (`.app` 서명용)
+
+> ⚠️ 5·6장에서 쓴 CSR은 **재사용할 수 없습니다**. 4장을 다시 실행해 **세 번째 CSR**(`okrbest-mas-app.certSigningRequest`)을 만드세요.
 
 1. `Certificates` → `+`
 2. `Software` 섹션에서 **`Mac App Distribution`** 선택 → `Continue`
-3. 새로 만든 **`okrbest-mas.certSigningRequest`** 업로드 → `Download` → 설치
+3. 새로 만든 **`okrbest-mas-app.certSigningRequest`** 업로드 → `Download` → 설치
 
 권장 파일명:
 ```text
 ~/secure/apple-signing/MacAppDistribution_OKRBest.cer
 ```
 
-> **참고**: 최근 포털에는 "Apple Distribution"이라는 iOS/macOS 통합 인증서 옵션도 있지만, `electron-builder`의 `mas` 타깃이 내부적으로 `3rd Party Mac Developer Application:`로 시작하는 인증서 subject를 기대하므로 **MAS 전용 `Mac App Distribution`을 쓰는 쪽이 안전**합니다. (Apple Distribution으로도 동작하지만 일부 빌드 로직에서 오판 여지가 있음.)
+> **참고**: 최근 포털에는 "Apple Distribution"이라는 iOS/macOS 통합 인증서 옵션도 있지만, `electron-builder`의 `mas` 타깃이 내부적으로 `3rd Party Mac Developer Application:`로 시작하는 인증서 subject를 기대하므로 **MAS 전용 `Mac App Distribution`을 쓰는 쪽이 안전**합니다.
 
-### 7.1 MAS용 `.p12` export
+### 7.2 Mac Installer Distribution 인증서 (`.pkg` 서명용)
 
-1. Keychain Access → `내 인증서` → `3rd Party Mac Developer Application: ...` 항목 (위에서 설치된 것) 우클릭
-2. `내보내기...`
-3. 포맷: `.p12`
-4. 저장:
+> ⚠️ 7.1에서 쓴 CSR도 **재사용할 수 없습니다**. 4장을 다시 실행해 **네 번째 CSR**(`okrbest-mas-installer.certSigningRequest`)을 만드세요.
+
+1. `Certificates` → `+`
+2. `Software` 섹션에서 **`Mac Installer Distribution`** 선택 → `Continue`
+3. 새로 만든 **`okrbest-mas-installer.certSigningRequest`** 업로드 → `Download` → 설치
+
+권장 파일명:
+```text
+~/secure/apple-signing/MacInstallerDistribution_OKRBest.cer
+```
+
+설치 후 Keychain Access의 `내 인증서`에 **두 인증서(`3rd Party Mac Developer Application: ...` + `3rd Party Mac Developer Installer: ...`)가 모두 개인키와 함께 있는지 확인**.
+
+### 7.3 MAS용 `.p12` export (두 인증서를 한 파일로)
+
+1. Keychain Access → `로그인` → `내 인증서`
+2. `3rd Party Mac Developer Application: ...` 와 `3rd Party Mac Developer Installer: ...` **두 항목을 Cmd-클릭으로 동시 선택**
+3. 우클릭 → `내보내기 2개 항목... (Export 2 items...)`
+4. 포맷: `개인 정보 교환(.p12)` (Personal Information Exchange)
+5. 저장:
    ```text
    ~/secure/apple-signing/MAS_Distribution_OKRBest.p12
    ```
-5. 암호 설정 — `OKRBEST_DESKTOP_MAC_APP_STORE_CSC_KEY_PASSWORD`로 사용될 값.
-
-> MAS 인스톨러(`.pkg`) 서명을 위한 별도 `Mac Installer Distribution` 인증서는 **이 프로젝트에서는 필요 없습니다** — `electron-builder`가 `mas` 타깃에서 pkg 생성 시 자동으로 productbuild 쪽 서명을 처리하며, 추가 인스톨러 인증서를 요구하지 않는 구성입니다. 혹시 향후 빌드 로그에 *"No 3rd Party Mac Developer Installer certificate"* 경고가 뜨면 그때 추가 발급하세요.
+6. **암호 설정** — 이 값이 `OKRBEST_DESKTOP_MAC_APP_STORE_CSC_KEY_PASSWORD` 시크릿이 됩니다. 강한 암호 사용.
 
 ---
 
@@ -500,12 +520,13 @@ security cms -D -i ~/secure/apple-signing/mas.provisionprofile | grep -A1 "AppID
 - [ ] Apple Developer Membership Active + Team ID 확인
 - [ ] `resources/mac/entitlements.mas.plist`의 Team ID가 실제 값과 일치
 - [ ] App ID `OKRBest.Desktop` 등록 + Capabilities 활성화 (App groups 체크만, Configure는 누르지 않음)
-- [ ] CSR 3개 생성 (App ID Application / Installer / MAS 각각)
+- [ ] CSR 4개 생성 (Developer ID App / Developer ID Installer / Mac App Distribution / Mac Installer Distribution 각각)
 - [ ] Developer ID Application 인증서 발급 및 설치
 - [ ] Developer ID Installer 인증서 발급 및 설치
 - [ ] Mac App Distribution 인증서 발급 및 설치
+- [ ] Mac Installer Distribution 인증서 발급 및 설치
 - [ ] Developer ID용 `.p12` export (App+Installer 합본)
-- [ ] MAS용 `.p12` export
+- [ ] MAS용 `.p12` export (App+Installer 합본)
 - [ ] App Store Connect API Key(`.p8`) 생성 + Key ID/Issuer ID 기록
 - [ ] MAS Provisioning Profile 생성
 - [ ] GitHub Secrets 8~9개 등록
