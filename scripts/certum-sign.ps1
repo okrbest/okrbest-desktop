@@ -195,23 +195,68 @@ if (-not (Test-Path $SimplySignExe)) {
         throw "Downloaded file is not a valid MSI package. URL may be outdated: $SimplySignUrl"
     }
 
-    Write-Host "Installing SimplySign Desktop via msiexec..."
+    $msiLog = "$env:TEMP\simplysign-install.log"
+    Write-Host "Installing SimplySign Desktop via msiexec (log: $msiLog)..."
     $proc = Start-Process -FilePath "msiexec.exe" `
-        -ArgumentList "/i", "`"$InstallerPath`"", "/qn", "/norestart" `
+        -ArgumentList "/i", "`"$InstallerPath`"", "/qn", "/norestart", "/L*V", "`"$msiLog`"" `
         -Wait -PassThru -NoNewWindow
     if ($proc.ExitCode -ne 0) {
-        throw "msiexec failed with exit code $($proc.ExitCode). Check %TEMP%\MSI*.log for details."
+        Write-Host "--- msiexec failed; tail of install log ---"
+        if (Test-Path $msiLog) { Get-Content $msiLog -Tail 80 | ForEach-Object { Write-Host $_ } }
+        throw "msiexec failed with exit code $($proc.ExitCode)."
     }
 
     if (-not (Test-Path $SimplySignExe)) {
-        # 설치 경로가 변동됐을 수 있으니 Program Files 전역에서 탐색
-        $found = Get-ChildItem -Path "C:\Program Files", "C:\Program Files (x86)" `
-            -Filter "SimplySign Desktop.exe" -Recurse -ErrorAction SilentlyContinue |
-            Select-Object -First 1
-        if ($found) {
-            $SimplySignExe = $found.FullName
+        # MSI가 per-user install 또는 비표준 경로로 들어갔을 가능성이 있으므로 단계적으로 탐색.
+        $resolved = $null
+
+        # 1) 언인스톨 레지스트리에서 SimplySign 등록 정보 확인 (InstallLocation 신뢰 가능)
+        $uninstallRoots = @(
+            'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*',
+            'HKLM:\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*',
+            'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*'
+        )
+        foreach ($root in $uninstallRoots) {
+            $entries = Get-ItemProperty $root -ErrorAction SilentlyContinue |
+                Where-Object { $_.DisplayName -like '*SimplySign*' }
+            foreach ($entry in $entries) {
+                if ($entry.InstallLocation -and (Test-Path $entry.InstallLocation)) {
+                    $candidate = Join-Path $entry.InstallLocation 'SimplySign Desktop.exe'
+                    if (Test-Path $candidate) { $resolved = $candidate; break }
+                }
+            }
+            if ($resolved) { break }
+        }
+
+        # 2) 기본 경로 외 사용자 폴더까지 포괄 탐색
+        if (-not $resolved) {
+            $searchRoots = @(
+                'C:\Program Files',
+                'C:\Program Files (x86)',
+                $env:LOCALAPPDATA,
+                $env:APPDATA,
+                $env:ProgramData
+            ) | Where-Object { $_ -and (Test-Path $_) }
+            foreach ($root in $searchRoots) {
+                $found = Get-ChildItem -Path $root -Filter 'SimplySign Desktop.exe' `
+                    -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+                if ($found) { $resolved = $found.FullName; break }
+            }
+        }
+
+        if ($resolved) {
+            $SimplySignExe = $resolved
             Write-Host "SimplySign Desktop found at: $SimplySignExe"
         } else {
+            Write-Host "--- Registered SimplySign/Certum uninstall entries ---"
+            foreach ($root in $uninstallRoots) {
+                Get-ItemProperty $root -ErrorAction SilentlyContinue |
+                    Where-Object { $_.DisplayName -like '*SimplySign*' -or $_.Publisher -like '*Certum*' -or $_.Publisher -like '*Asseco*' } |
+                    Select-Object DisplayName, DisplayVersion, InstallLocation, Publisher, UninstallString |
+                    Format-List
+            }
+            Write-Host "--- msiexec install log (tail 200 lines) ---"
+            if (Test-Path $msiLog) { Get-Content $msiLog -Tail 200 | ForEach-Object { Write-Host $_ } }
             throw "SimplySign Desktop installation failed. Executable not found."
         }
     }
