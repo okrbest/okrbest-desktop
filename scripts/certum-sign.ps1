@@ -301,22 +301,41 @@ Write-Host "TOTP code generated."
 
 Write-Host "Launching SimplySign Desktop..."
 $proc = Start-Process -FilePath $SimplySignExe -PassThru
-Start-Sleep -Seconds 5
+Start-Sleep -Seconds 10   # 9.4.x 첫 실행은 JVM 초기화 때문에 느리다
 
 $wshell = New-Object -ComObject WScript.Shell
 
-# SimplySign 윈도우에 포커스
-$focused = $wshell.AppActivate($proc.Id)
-if (-not $focused) {
-    $focused = $wshell.AppActivate('SimplySign Desktop')
+# 9.4.x에서 제품이 `proCertum SmartSign SimplySign Desktop`으로 통합되면서 윈도우 제목이
+# 과거 `SimplySign Desktop` 단일 값이 아닐 수 있다. 신·구 후보를 모두 시도한다.
+$titleCandidates = @(
+    'SimplySign Desktop',
+    'proCertum SmartSign SimplySign Desktop',
+    'proCertum SmartSign',
+    'SmartSign',
+    'Start SimplySign',
+    'SimplySign'
+)
+
+$focused = $false
+for ($attempt = 1; $attempt -le 20; $attempt++) {
+    # PID 기반 활성화 먼저
+    if ($wshell.AppActivate([int]$proc.Id)) { $focused = $true; break }
+    # 각 제목 후보 시도
+    foreach ($title in $titleCandidates) {
+        if ($wshell.AppActivate($title)) { $focused = $true; break }
+    }
+    if ($focused) { break }
+    Start-Sleep -Milliseconds 1000
 }
 
-for ($i = 0; -not $focused -and $i -lt 20; $i++) {
-    Start-Sleep -Milliseconds 500
-    $focused = $wshell.AppActivate($proc.Id) -or $wshell.AppActivate('SimplySign Desktop')
-}
-
 if (-not $focused) {
+    # 실패 시 실제 보이는 윈도우 목록을 로그로 남겨 다음 라운드에 정확한 제목을 확인할 수 있게 한다.
+    Write-Host "--- Visible windows with non-empty title ---"
+    Get-Process | Where-Object { $_.MainWindowTitle -ne '' } |
+        ForEach-Object { Write-Host "  PID $($_.Id): [$($_.ProcessName)] '$($_.MainWindowTitle)'" }
+    Write-Host "--- SimplySign/SmartSign/Certum 관련 프로세스 ---"
+    Get-Process | Where-Object { $_.ProcessName -match 'SimplySign|SmartSign|proCertum|Certum' } |
+        ForEach-Object { Write-Host "  PID $($_.Id): $($_.ProcessName) - Title: '$($_.MainWindowTitle)'" }
     throw "Could not bring SimplySign Desktop to the foreground."
 }
 
