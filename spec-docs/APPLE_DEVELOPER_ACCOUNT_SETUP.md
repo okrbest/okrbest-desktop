@@ -14,8 +14,9 @@
 4. `.p12` 인증서 파일 2개 생성 (Developer ID용 1개 + MAS용 1개)
 5. App Store Connect API Key(`.p8`) 생성
 6. MAS provisioning profile 생성
-7. GitHub Actions Secrets 등록 (9개)
-8. 워크플로우 실행으로 서명/노터리/MAS 제출 정상 동작 확인
+7. App Store Connect에 앱 레코드 등록 (`My Apps`)
+8. GitHub Actions Secrets 등록 (9개)
+9. 워크플로우 실행으로 서명/노터리/MAS 제출 정상 동작 확인
 
 ---
 
@@ -344,6 +345,36 @@ notarization 및 MAS 업로드(fastlane) 공통으로 사용됩니다.
 
 당장은 **A로 진행**해도 빌드가 통과합니다.
 
+### 9.3 App Store Connect 앱 등록 (MAS 전용, 필수)
+
+Apple Developer Portal의 **App ID 등록(3.2)과 App Store Connect의 "My Apps" 등록은 별개**입니다. App ID는 서명·프로파일 발급용, App Store Connect 레코드는 **TestFlight 업로드 및 스토어 배포용**입니다. 이 단계가 빠져 있으면 `fastlane pilot`이 다음 에러로 실패합니다:
+
+```
+[!] Couldn't find app 'OKRBest.Desktop' on the account of '' on App Store Connect
+```
+
+#### 등록 절차
+
+1. <https://appstoreconnect.apple.com> 로그인
+2. 상단 메뉴 → **`My Apps`** (또는 `내 앱`)
+3. 우상단 **`+`** → **`New App`**
+4. 팝업에서:
+   - **Platforms**: `macOS` 체크 (iOS/tvOS는 비활성)
+   - **Name**: 사용자에게 보일 앱 이름 (예: `OKR Best Desktop` — 나중에 제출 전 변경 가능)
+   - **Primary Language**: `Korean (South Korea)` 또는 `English (U.S.)` (사용자 선호)
+   - **Bundle ID**: 드롭다운에서 **`OKRBest.Desktop`** 선택
+     - 드롭다운에 안 보이면 3.2의 App ID 등록이 안 된 상태. 그 단계부터 다시 확인.
+   - **SKU**: 내부 고유 식별자. 임의로 `OKRBESTDESKTOP001` 같이 영문+숫자 조합 (스토어 노출되지 않음)
+   - **User Access**: `Full Access`
+5. `Create`
+
+#### 확인 사항
+
+- 생성된 앱 레코드가 `My Apps` 목록에 **macOS 아이콘과 함께** 표시되는지
+- 앱 레코드 열어 `App Information` 탭의 **Bundle ID**가 `OKRBest.Desktop`(정확히 일치)인지
+
+> 💡 **주의**: App Store Connect의 앱 Name은 스토어 검색/노출용이라 Apple 심사를 통과해야 최종 공개됩니다. 테스트 초기 단계에는 내부 식별용 이름으로 두고, 실제 배포 전에 마케팅 이름으로 변경하면 됩니다.
+
 ---
 
 ## 10. GitHub Secrets 등록
@@ -480,7 +511,16 @@ security cms -D -i ~/secure/apple-signing/mas.provisionprofile | grep -A1 "AppID
 - `resources/mac/entitlements.mas.plist`의 Team ID 세 군데를 실제 값으로 수정
 - App ID → Capabilities → **App groups 체크박스가 켜져 있는지** 확인 (단 `Configure`는 누르지 말 것 — 3.3 참조)
 
-### 13.4 API Key 관련 notarization 실패
+### 13.4 `fastlane pilot`에서 "Couldn't find app '...' on App Store Connect"
+
+원인:
+- Apple Developer Portal에 App ID는 등록했으나 **App Store Connect `My Apps`에 앱 레코드가 없음** — 두 곳은 별개의 등록 절차
+
+해결:
+- 9.3 단계를 따라 App Store Connect에 macOS 앱을 새로 등록 (Bundle ID = `OKRBest.Desktop`)
+- 등록 직후 `fastlane pilot`이 앱을 인식하기까지 수 분 지연될 수 있음
+
+### 13.5 API Key 관련 notarization 실패
 
 원인:
 - Key ID / Issuer ID / `.p8` 본문 중 하나가 다른 세트 값
@@ -490,7 +530,7 @@ security cms -D -i ~/secure/apple-signing/mas.provisionprofile | grep -A1 "AppID
 - 세 값을 **같은 키에서 한 번에 다시** 복사해 시크릿 재등록
 - `.p8` 원문 전체(헤더/본문/푸터/개행 포함) 그대로 붙여넣기
 
-### 13.5 Provisioning Profile 디코드 실패
+### 13.6 Provisioning Profile 디코드 실패
 
 원인:
 - Base64 변환 시 줄바꿈/공백 혼입
@@ -529,6 +569,7 @@ security cms -D -i ~/secure/apple-signing/mas.provisionprofile | grep -A1 "AppID
 - [ ] MAS용 `.p12` export (App+Installer 합본)
 - [ ] App Store Connect API Key(`.p8`) 생성 + Key ID/Issuer ID 기록
 - [ ] MAS Provisioning Profile 생성
+- [ ] **App Store Connect `My Apps`에 앱 레코드 등록** (Bundle ID = `OKRBest.Desktop`, Platforms = macOS)
 - [ ] GitHub Secrets 8~9개 등록
 - [ ] PR 빌드로 macOS 서명 검증
 
