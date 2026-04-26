@@ -167,9 +167,13 @@ function Wait-ForCodeSigningCert {
 #   (1) `.exe` 인스톨러의 `/S` 같은 비표준 silent 스위치가 인식되지 않으면 설치가 조용히
 #       중단되어 "Executable not found" 단계에서만 비로소 실패가 드러난다.
 #   (2) `msiexec /qn`은 표준 silent 설치를 보장하고 exit code가 명확해 실패 감지가 즉시 가능하다.
-$SimplySignVersion = "9.4.2.86"
-$SimplySignUrl = "https://files.certum.eu/software/SimplySignDesktop/Windows/$SimplySignVersion/SimplySignDesktop-$SimplySignVersion-64-bit-en.msi"
-$InstallerPath = "$env:TEMP\SimplySignDesktop-$SimplySignVersion-64-bit-en.msi"
+# 9.4.x는 시스템 트레이 전용으로 재설계되어 윈도우 제목이 비고, AppActivate 기반 SendKeys
+# 자동화와 호환되지 않는다. Certum 공식 서포트 페이지에 여전히 게시된 9.3.3.71(전통적
+# 로그인 윈도우 보유)을 고정 사용한다. 32비트 MSI지만 windows-2022 64비트 러너에서 WOW64로
+# 정상 실행되며, Code Signing은 signtool 비트너스와 무관하게 Windows 인증서 저장소를 통해 동작.
+$SimplySignVersion = "9.3.3.71"
+$SimplySignUrl = "https://files.certum.eu/software/SimplySignDesktop/Windows/$SimplySignVersion/SimplySignDesktop-$SimplySignVersion-32-bit-en.msi"
+$InstallerPath = "$env:TEMP\SimplySignDesktop-$SimplySignVersion-32-bit-en.msi"
 
 # 9.4.x부터 GUI 런처 파일명이 `SimplySign Desktop.exe`(공백 포함)에서 `SimplySignDesktop.exe`
 # (공백 없음)로 변경됨. 신버전을 우선 탐색하고 구버전을 폴백으로 유지한다.
