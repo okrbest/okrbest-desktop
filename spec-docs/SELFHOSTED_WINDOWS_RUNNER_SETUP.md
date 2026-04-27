@@ -112,10 +112,21 @@ Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings' `
 기본 5.1로도 동작하나, 워크플로 호환성 위해 7+ 권장:
 
 ```powershell
-winget install --id Microsoft.PowerShell --source winget
+winget install --id Microsoft.PowerShell --source winget `
+    --scope machine --installer-type msi `
+    --accept-package-agreements --accept-source-agreements
 ```
 
-설치 후 `pwsh.exe`가 PATH에 잡히는지 새 PowerShell 창에서 확인.
+> **주의**: `--scope machine --installer-type msi` 옵션을 **반드시** 명시하세요. 옵션 없이 설치하면 winget이 환경에 따라 **MSIX/사용자 스코프**로 설치할 수 있고, 이 경우 실행파일이 `C:\Users\<user>\AppData\Local\Microsoft\WindowsApps\pwsh.exe` (App Execution Alias) 에만 노출됩니다. 이 별칭은 Task Scheduler 컨텍스트에서 해석되지 않아 4장의 세션 갱신 작업이 `0x80070002 (ERROR_FILE_NOT_FOUND)` 로 실패합니다.
+
+설치 후 검증 — **반드시 다음 경로가 존재해야** 합니다:
+
+```powershell
+Test-Path 'C:\Program Files\PowerShell\7\pwsh.exe'   # True 여야 함
+pwsh --version                                       # 새 PowerShell 창에서
+```
+
+`Test-Path` 가 `False` 면 MSIX로 잘못 설치된 것 — `winget uninstall --id Microsoft.PowerShell` 후 위 명령으로 재설치하세요.
 
 ### 2.5 Chocolatey 설치 (패키지 매니저)
 
@@ -202,6 +213,19 @@ Get-ChildItem 'C:\Program Files (x86)\Certum\SimplySign Desktop\' -Filter '*.exe
    - **Token**: 휴대폰 SimplySign 앱에서 생성된 6자리 OTP
 4. 로그인 성공 → 트레이 아이콘이 활성화되고 Windows 인증서 저장소에 코드 서명 인증서가 주입됨
 
+**중요 — Options 설정 (4장 자동 갱신의 전제조건)**:
+
+로그인 성공 후 트레이 아이콘 우클릭 → **Options** 또는 **Settings** 진입 후 다음 체크박스를 **반드시** 켜주세요:
+
+- ✅ **Show login dialog on SimplySign Desktop startup**
+- ✅ Autostart with Windows
+- ✅ Remember last logged ID
+- ✅ Show login dialog when an application requests access to SimplySign
+- ❌ Unregister certificates after disconnecting from SimplySign (꺼두기)
+- ✅ Enable PIN cache for CSP/KSP-based applications
+
+**"Show login dialog on SimplySign Desktop startup" 가 꺼져 있으면** 4장의 자동 갱신 스크립트가 SimplySign을 실행해도 로그인 창이 안 뜨고, SendKeys가 활성 윈도우를 못 찾아 `SimplySign Desktop window not found.` 로 실패합니다.
+
 **검증**:
 
 ```powershell
@@ -248,8 +272,14 @@ $env:CERTUM_USERID
 
 $ErrorActionPreference = 'Stop'
 
+# 디버깅용 트랜스크립트 (Task Scheduler에서 실패할 때 실제 에러 추적)
+Start-Transcript -Path ('C:\certum\refresh-{0:yyyyMMdd-HHmmss}.log' -f (Get-Date)) -Append
+
 $OtpUri = $env:CERTUM_OTP_URI
 $UserId = $env:CERTUM_USERID
+# Machine 스코프 환경변수가 현재 로그온 세션에 안 박혀 있을 수 있어 레지스트리 폴백
+if (-not $OtpUri) { $OtpUri = [Environment]::GetEnvironmentVariable('CERTUM_OTP_URI','Machine') }
+if (-not $UserId) { $UserId = [Environment]::GetEnvironmentVariable('CERTUM_USERID','Machine') }
 if (-not $OtpUri -or -not $UserId) { throw 'CERTUM_OTP_URI / CERTUM_USERID not set.' }
 
 # === otpauth:// 파싱 ===
@@ -369,7 +399,11 @@ New-Item -ItemType Directory -Path 'C:\certum' -Force | Out-Null
 # refresh-session.ps1 파일을 C:\certum\refresh-session.ps1 에 저장 (위 내용 복사)
 
 # 매 1시간 50분마다 실행하는 스케줄 작업 (2시간 세션 만료 직전 갱신)
-$action = New-ScheduledTaskAction -Execute 'pwsh.exe' `
+# pwsh.exe는 절대경로로 — Task Scheduler는 App Execution Alias(WindowsApps\pwsh.exe)를 해석 못 함
+$pwsh = 'C:\Program Files\PowerShell\7\pwsh.exe'
+if (-not (Test-Path $pwsh)) { throw "$pwsh not found. 2.4 단계의 MSI 설치 확인 필요." }
+
+$action = New-ScheduledTaskAction -Execute $pwsh `
     -Argument '-ExecutionPolicy Bypass -NoProfile -File C:\certum\refresh-session.ps1' `
     -WorkingDirectory 'C:\certum'
 
@@ -410,6 +444,33 @@ Get-ScheduledTask -TaskName 'CertumSessionRefresh' | Get-ScheduledTaskInfo
 ```
 
 `LastTaskResult`가 `0` 이고 `Cert:\CurrentUser\My`에 코드 서명 인증서가 보이면 자동 갱신 정상 동작.
+
+### 4.3 트러블슈팅 — `LastTaskResult` 코드별 진단
+
+| 코드 (10진/16진) | 의미 | 원인 / 조치 |
+|---|---|---|
+| `0` / `0x0` | 성공 | — |
+| `1` / `0x1` | 스크립트 내부 throw | `C:\certum\refresh-*.log` 트랜스크립트 확인. 흔한 원인: ① **Show login dialog on SimplySign Desktop startup** 체크 누락 (3.2 참조) ② SimplySign 윈도우 타이틀 변경 (`$titleCandidates` 추가 필요) ③ 환경변수 누락 (3.3 참조) |
+| `2147942402` / `0x80070002` | ERROR_FILE_NOT_FOUND | `pwsh.exe` 또는 `refresh-session.ps1` 경로 미존재. 2.4의 MSI 설치 확인 (`Test-Path 'C:\Program Files\PowerShell\7\pwsh.exe'`) |
+| `2147942405` / `0x80070005` | ERROR_ACCESS_DENIED | 작업의 `RunLevel` / `LogonType` 확인. `Highest` + `Interactive` 필요 |
+| `267011` / `0x41303` | 한 번도 실행 안 됨 | 트리거 시점이 미래 또는 자동 로그인 미설정 (2.1 참조) |
+
+**트랜스크립트 로그 확인** (가장 빠른 진단):
+
+```powershell
+Get-ChildItem C:\certum\refresh-*.log | Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1 | Get-Content
+```
+
+**SimplySign 실제 윈도우 타이틀 확인** (9.x 업데이트 후 타이틀 변경 시):
+
+```powershell
+# 작업 실행 직후, 로그인 창이 떠 있는 동안 별도 창에서:
+Get-Process | Where-Object { $_.MainWindowTitle -ne '' -and $_.Name -match 'SimplySign|SmartSign|proCertum' } |
+    Select-Object Id, Name, MainWindowTitle
+```
+
+여기 보이는 타이틀이 [refresh-session.ps1](file:///C:/certum/refresh-session.ps1) 의 `$titleCandidates` 배열에 없으면 추가하세요. 동일 변경이 워크플로(`.github/workflows/`)에도 필요할 수 있습니다.
 
 ---
 
