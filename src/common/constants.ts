@@ -45,6 +45,7 @@ export const MASK_URL = 'URL';
 
 export const LOGS_MAX_STRING_LENGTH = 63;
 export const POPOUT_RATE_LIMIT = 1000;
+export const MAX_URL_LENGTH = 8192;
 
 // We use this URL inside the Diagnostics to check if the computer has internet connectivity
 export const IS_ONLINE_ENDPOINT = 'https://team.okrbest.com/api/v4/system/ping';
