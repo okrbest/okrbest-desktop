@@ -73,7 +73,7 @@ jobs:
           retention-days: 14 ## No need to keep CI builds more than 14 days
 
   build-msi-installer:
-    runs-on: windows-2022
+    runs-on: [self-hosted, windows, certum]
     needs:
       - begin-notification
     steps:
@@ -108,14 +108,14 @@ jobs:
         env:
           CERTUM_OTP_URI: ${{ secrets.CERTUM_OTP_URI }}
           CERTUM_USERID: ${{ secrets.CERTUM_USERID }}
-        run: pwsh -ExecutionPolicy Bypass -File ./scripts/certum-sign.ps1 -FilePath "release/win*-unpacked/*.exe"
+        run: pwsh -ExecutionPolicy Bypass -File ./scripts/certum-sign-selfhosted.ps1 -FilePath "release/win*-unpacked/*.exe"
       - name: release/sign-windows-msi
         if: ${{ secrets.CERTUM_OTP_URI != '' && secrets.CERTUM_USERID != '' }}
         shell: powershell
         env:
           CERTUM_OTP_URI: ${{ secrets.CERTUM_OTP_URI }}
           CERTUM_USERID: ${{ secrets.CERTUM_USERID }}
-        run: pwsh -ExecutionPolicy Bypass -File ./scripts/certum-sign.ps1 -FilePath "release/*.msi"
+        run: pwsh -ExecutionPolicy Bypass -File ./scripts/certum-sign-selfhosted.ps1 -FilePath "release/*.msi"
       - name: release/package
         run: |
           mkdir -p ./build/win-release

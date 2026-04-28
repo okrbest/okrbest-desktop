@@ -27,7 +27,7 @@ env:
 
 jobs:
   build-msi-installer:
-    runs-on: windows-2022
+    runs-on: [self-hosted, windows, certum]
     steps:
       - name: nightly/checkout-repo
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -61,14 +61,14 @@ jobs:
           CERTUM_USERID: ${{ secrets.CERTUM_USERID }}
         if: ${{ env.CERTUM_OTP_URI != '' && env.CERTUM_USERID != '' }}
         shell: powershell
-        run: pwsh -ExecutionPolicy Bypass -File ./scripts/certum-sign.ps1 -FilePath "release/win*-unpacked/*.exe"
+        run: pwsh -ExecutionPolicy Bypass -File ./scripts/certum-sign-selfhosted.ps1 -FilePath "release/win*-unpacked/*.exe"
       - name: nightly/sign-windows-msi
         env:
           CERTUM_OTP_URI: ${{ secrets.CERTUM_OTP_URI }}
           CERTUM_USERID: ${{ secrets.CERTUM_USERID }}
         if: ${{ env.CERTUM_OTP_URI != '' && env.CERTUM_USERID != '' }}
         shell: powershell
-        run: pwsh -ExecutionPolicy Bypass -File ./scripts/certum-sign.ps1 -FilePath "release/*.msi"
+        run: pwsh -ExecutionPolicy Bypass -File ./scripts/certum-sign-selfhosted.ps1 -FilePath "release/*.msi"
       - name: nightly/package
         run: |
           mkdir -p ./build/win
