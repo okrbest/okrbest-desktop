@@ -128,7 +128,28 @@ pwsh --version                                       # 새 PowerShell 창에서
 
 `Test-Path` 가 `False` 면 MSIX로 잘못 설치된 것 — `winget uninstall --id Microsoft.PowerShell` 후 위 명령으로 재설치하세요.
 
-### 2.5 Chocolatey 설치 (패키지 매니저)
+### 2.5 PowerShell ExecutionPolicy 설정
+
+Windows 11의 기본값은 `Restricted` 라 GitHub Actions가 매 스텝마다 생성하는 임시 `.ps1` 스크립트를 실행조차 못 합니다(`UnauthorizedAccess: ... is not digitally signed`). GitHub-hosted 러너 이미지는 미리 풀어놓아서 안 보이던 문제로, self-hosted에서는 **머신에서 1회 영구 설정**해야 합니다.
+
+**관리자 PowerShell**:
+
+```powershell
+Set-ExecutionPolicy -Scope LocalMachine -ExecutionPolicy RemoteSigned -Force
+```
+
+확인:
+
+```powershell
+Get-ExecutionPolicy -List
+# LocalMachine 이 RemoteSigned 로 표시되어야 함
+```
+
+> `RemoteSigned`: 로컬 생성된 .ps1(GHA의 `_work\_temp\*.ps1` 포함)은 실행 허용, 인터넷에서 다운로드된 미서명 스크립트는 차단. CI 러너에 적절한 균형. 더 풀어주려면 `Bypass`도 가능하지만 보통 `RemoteSigned`로 충분합니다.
+
+> **러너 등록 전에 반드시 설정**할 것 — 러너 서비스가 시작되고 잡이 들어온 뒤에 정책을 풀면 이미 실패한 잡은 재실행이 필요합니다. 러너 등록(5장) 후에 정책을 바꾸려면 `Restart-Service 'actions.runner.*'` 권장.
+
+### 2.6 Chocolatey 설치 (패키지 매니저)
 
 ```powershell
 Set-ExecutionPolicy Bypass -Scope Process -Force
@@ -137,7 +158,7 @@ Set-ExecutionPolicy Bypass -Scope Process -Force
 iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
 ```
 
-### 2.6 빌드 도구 설치
+### 2.7 빌드 도구 설치
 
 ```powershell
 # Git
@@ -162,7 +183,7 @@ choco install nodejs-lts -y
 # 모든 설치 후 PATH 갱신을 위해 새 PowerShell 창 열기
 ```
 
-### 2.7 signtool.exe 위치 확인
+### 2.8 signtool.exe 위치 확인
 
 Visual Studio Build Tools와 함께 설치된 Windows SDK 안에 있습니다:
 
@@ -752,7 +773,8 @@ Certum 인증서 만료 30일 전부터 갱신 절차:
 - [ ] Sysinternals Autologon으로 자동 로그인 활성
 - [ ] 절전/슬립/하이버네이트 비활성 (`powercfg`)
 - [ ] Windows Update 활성 시간 nightly 시간대 포함
-- [ ] PowerShell 7+, Chocolatey 설치
+- [ ] PowerShell 7+ 설치 + ExecutionPolicy `RemoteSigned`(LocalMachine) 설정
+- [ ] Chocolatey 설치
 - [ ] Git, Visual Studio Build Tools, Windows SDK, Node.js, yq, jq 설치
 - [ ] SimplySign Desktop 9.4.x 64-bit 설치
 - [ ] **사람이 1회 OTP로 SimplySign 인증** (모바일 앱)
