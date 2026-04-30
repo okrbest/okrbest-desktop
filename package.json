@@ -1,7 +1,7 @@
 {
   "name": "okrbest-desktop",
   "productName": "OKR Best",
-  "version": "6.2.0-develop.1",
+  "version": "6.2.0-nightly.20260430",
   "description": "OKR Best Desktop",
   "main": "dist/index.js",
   "author": "OKR Best <support@okr.best>",
