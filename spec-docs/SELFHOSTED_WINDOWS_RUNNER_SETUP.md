@@ -286,7 +286,15 @@ $env:CERTUM_USERID
   refresh-session.ps1
   ----------------
   SimplySign Desktop 세션을 갱신해 영구 유지하기 위한 스크립트.
-  Task Scheduler에서 매 1시간 50분마다 실행.
+  Task Scheduler에서 매 1시간 50분마다 실행 + 워크플로의 서명 잡 시작 시
+  certum-sign-selfhosted.ps1이 즉석 호출.
+
+  설계 원칙 (운영 학습 반영):
+    - 시작 시 기존 SimplySignDesktop 인스턴스를 강제 종료한 뒤 새로 띄움.
+      이미 떠 있으면 새 로그인 창이 안 뜨고 SendKeys가 미아 → 알려진 실패 모드.
+    - 성공 판정은 cert 존재가 아니라 private key SignData 테스트 통과로 격상.
+      cert 메타데이터는 세션이 죽어도 store에 캐시처럼 남아 거짓 양성 가능.
+    - 따라서 LastTaskResult=0 이면 signtool이 즉시 서명 가능한 상태가 보장된다.
 
   필요 환경변수: CERTUM_OTP_URI, CERTUM_USERID (시스템 영구 등록 권장)
 #>
@@ -366,6 +374,12 @@ $exe = Get-ChildItem -Path 'C:\Program Files\Certum\SimplySign Desktop',
 
 if (-not $exe) { throw 'SimplySign Desktop executable not found.' }
 
+# 기존 SimplySignDesktop 인스턴스 강제 종료 — 안 그러면 새 로그인 창이 안 떠
+# SendKeys 가 미아가 됨 (알려진 실패 모드).
+Get-Process SimplySignDesktop -ErrorAction SilentlyContinue |
+    Stop-Process -Force -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 2
+
 $proc = Start-Process -FilePath $exe.FullName -PassThru
 Start-Sleep -Seconds 5
 
@@ -397,17 +411,28 @@ $wshell.SendKeys($otp)
 Start-Sleep -Milliseconds 150
 $wshell.SendKeys('{ENTER}')
 
-# 인증서 저장소에 인증서 주입 대기
+# private key 실접근(SignData)까지 통과해야 성공 — cert 존재만으론 거짓 양성 가능.
+# CNG 키(SimplySign 가상 스마트카드는 CNG/KSP)에 대응하기 위해
+# RSACertificateExtensions.GetRSAPrivateKey 사용 ($cert.PrivateKey 는 CNG에서 null).
 $deadline = (Get-Date).AddSeconds(30)
 while ((Get-Date) -lt $deadline) {
-    $certs = @(Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert -ErrorAction SilentlyContinue)
-    if ($certs.Count -gt 0) {
-        Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] SimplySign session refreshed. Cert count: $($certs.Count)"
-        return
+    $cert = Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+    if ($cert) {
+        $rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($cert)
+        if ($rsa) {
+            try {
+                [void]$rsa.SignData([byte[]](1..32), 'SHA256', 'Pkcs1')
+                Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] SimplySign session refreshed and private key verified. Subject: $($cert.Subject)"
+                return
+            } catch {
+                # 키 핸들은 잡혔는데 SignData 시 throw — KSP 인증 미완. 계속 폴링.
+            }
+        }
     }
     Start-Sleep -Seconds 1
 }
-throw 'No code signing certificate detected after authentication.'
+throw 'Session refresh did not produce a working private key (signtool-ready) within 30s.'
 ```
 
 ### 4.2 Task Scheduler 등록
@@ -695,16 +720,30 @@ Certum 인증서 만료 30일 전부터 갱신 절차:
 ### 8.2 Task Scheduler 작업이 실행되지만 LastTaskResult가 0이 아님
 
 원인 후보:
-- SimplySign Desktop 프로세스 충돌 (이미 떠 있는데 새로 실행 시도)
-- SendKeys가 다른 윈도우로 가서 OTP 잘못 입력
+- SendKeys가 SimplySign 외 다른 활성 윈도우로 가서 OTP 잘못 입력
+- KSP/CSP 통신 일시 장애 → SignData 검증이 30초 안에 통과 못 해 throw
+- SimplySign 윈도우 타이틀 변경 → AppActivate 실패 (§4.3 진단)
+- 인터랙티브 데스크톱 잠김 (Autologon 풀림 / 화면 잠금) → SendKeys가 데스크톱 미진입
 
-해결:
-- `refresh-session.ps1` 시작 시 기존 SimplySignDesktop 프로세스 정리:
-  ```powershell
-  Get-Process SimplySignDesktop -ErrorAction SilentlyContinue | Stop-Process -Force
-  Start-Sleep -Seconds 2
-  ```
-- 또는 SimplySign 트레이 아이콘만 활성 상태로 유지하고 새로 띄우지 않는 방식으로 스크립트 개선
+진단:
+- `C:\certum\refresh-*.log` 트랜스크립트에서 정확한 throw 라인 확인 (§4.3 트랜스크립트 명령 참조)
+- 프로세스 충돌 자체는 §4.1 의 "기존 SimplySignDesktop 강제 종료" 블록으로 자동 해결되므로 더 이상 흔한 원인이 아님
+
+### 8.2.1 cert는 보이는데 signtool이 "No certificates were found"로 실패
+
+특수 케이스 — `Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert`로는 인증서가 잡히는데 signtool은 후보 0건이라며 거부.
+
+원인: cert 메타데이터는 store에 캐시처럼 남아있지만 SimplySign 세션이 죽어 **private key 핸들이 사용 불가**. signtool `/a`는 "키 접근 가능한" cert만 선별하므로 후보 0건. `$cert.HasPrivateKey`는 True를 돌려주고 `$cert.PrivateKey`는 CNG 키라 조용히 null이라 거짓 양성 만들기 쉬움.
+
+진단:
+```powershell
+$c = (Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert)[0]
+$rsa = [Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($c)
+$rsa  # null 이면 키 핸들 못 얻음 = 세션 죽음
+try { [void]$rsa.SignData([byte[]](1..32),'SHA256','Pkcs1'); 'SIGN OK' } catch { "SIGN FAIL: $_" }
+```
+
+해결: [scripts/certum-sign-selfhosted.ps1](../scripts/certum-sign-selfhosted.ps1)는 이미 SignData 검증을 거쳐 실패 시 CertumSessionRefresh를 즉석 호출하도록 구현되어 있음. 그래도 실패하면 RDP로 SimplySign Desktop 수동 OTP 재인증 필요.
 
 ### 8.3 GitHub Actions runner가 offline로 표시됨
 
