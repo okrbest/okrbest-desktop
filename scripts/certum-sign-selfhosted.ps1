@@ -39,7 +39,13 @@ function Test-CodeSigningCertUsable {
         $rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($Cert)
         if (-not $rsa) { return $false }
         # SignData가 실제 KSP/CSP까지 도달해 키 핸들이 살아있는지 확인.
-        [void]$rsa.SignData([byte[]](1..32), 'SHA256', 'Pkcs1')
+        # PS 7 / .NET 8 에선 문자열 → HashAlgorithmName/RSASignaturePadding 자동변환이
+        # 안 돼 "SignData 오버로드 없음" 으로 깨진다 (PS 5.1 호환 가정 시 함정).
+        # 반드시 typed 값으로 호출.
+        [void]$rsa.SignData(
+            [byte[]](1..32),
+            [System.Security.Cryptography.HashAlgorithmName]::SHA256,
+            [System.Security.Cryptography.RSASignaturePadding]::Pkcs1)
         return $true
     } catch {
         return $false

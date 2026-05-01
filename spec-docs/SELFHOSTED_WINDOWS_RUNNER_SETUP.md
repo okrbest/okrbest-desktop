@@ -275,175 +275,43 @@ $env:CERTUM_USERID
 
 ## 4. SimplySign 세션 자동 갱신
 
-### 4.1 갱신 스크립트 작성
+### 4.1 갱신 스크립트 배포
 
-기존 `scripts/certum-sign.ps1`에서 **인증 부분만 추출**한 축약판을 머신에 배치합니다. 다운로드/설치/signtool 호출 코드는 제거 — 이미 설치 완료 + 인증서가 Windows 저장소에 들어 있으므로.
+스크립트의 단일 진실 소스는 [scripts/refresh-session.ps1](../scripts/refresh-session.ps1) (repo 안). Task Scheduler 액션은 `C:\certum\refresh-session.ps1` 절대경로를 사용하므로, **셋업 시 repo의 스크립트를 그 경로로 복사**해 둡니다. repo가 갱신되면 동일하게 재복사 (§7.5 참조).
 
-`C:\certum\refresh-session.ps1`:
+기존 `scripts/certum-sign.ps1`에서 **인증 부분만 추출**한 축약판이며, 다운로드/설치/signtool 호출은 빠져 있습니다 (러너 셋업 시 SimplySign 설치 완료 + 인증서가 Windows 저장소에 상주한다고 가정).
+
+**관리자 PowerShell**:
 
 ```powershell
-<#
-  refresh-session.ps1
-  ----------------
-  SimplySign Desktop 세션을 갱신해 영구 유지하기 위한 스크립트.
-  Task Scheduler에서 매 1시간 50분마다 실행 + 워크플로의 서명 잡 시작 시
-  certum-sign-selfhosted.ps1이 즉석 호출.
-
-  설계 원칙 (운영 학습 반영):
-    - 시작 시 기존 SimplySignDesktop 인스턴스를 강제 종료한 뒤 새로 띄움.
-      이미 떠 있으면 새 로그인 창이 안 뜨고 SendKeys가 미아 → 알려진 실패 모드.
-    - 성공 판정은 cert 존재가 아니라 private key SignData 테스트 통과로 격상.
-      cert 메타데이터는 세션이 죽어도 store에 캐시처럼 남아 거짓 양성 가능.
-    - 따라서 LastTaskResult=0 이면 signtool이 즉시 서명 가능한 상태가 보장된다.
-
-  필요 환경변수: CERTUM_OTP_URI, CERTUM_USERID (시스템 영구 등록 권장)
-#>
-
-$ErrorActionPreference = 'Stop'
-
-# 디버깅용 트랜스크립트 (Task Scheduler에서 실패할 때 실제 에러 추적)
-Start-Transcript -Path ('C:\certum\refresh-{0:yyyyMMdd-HHmmss}.log' -f (Get-Date)) -Append
-
-$OtpUri = $env:CERTUM_OTP_URI
-$UserId = $env:CERTUM_USERID
-# Machine 스코프 환경변수가 현재 로그온 세션에 안 박혀 있을 수 있어 레지스트리 폴백
-if (-not $OtpUri) { $OtpUri = [Environment]::GetEnvironmentVariable('CERTUM_OTP_URI','Machine') }
-if (-not $UserId) { $UserId = [Environment]::GetEnvironmentVariable('CERTUM_USERID','Machine') }
-if (-not $OtpUri -or -not $UserId) { throw 'CERTUM_OTP_URI / CERTUM_USERID not set.' }
-
-# === otpauth:// 파싱 ===
-$uri = [Uri]$OtpUri
-$q = @{}
-foreach ($part in $uri.Query.TrimStart('?') -split '&') {
-    $kv = $part -split '=', 2
-    if ($kv.Count -eq 2) { $q[$kv[0]] = [Uri]::UnescapeDataString($kv[1]) }
-}
-$Base32 = $q['secret']
-$Digits = if ($q['digits']) { [int]$q['digits'] } else { 6 }
-$Period = if ($q['period']) { [int]$q['period'] } else { 30 }
-$Algorithm = if ($q['algorithm']) { $q['algorithm'].ToUpper() } else { 'SHA1' }
-
-# === TOTP 생성기 ===
-Add-Type -Language CSharp @'
-using System;
-using System.Security.Cryptography;
-public static class Totp {
-    private const string B32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-    private static byte[] Base32Decode(string s) {
-        s = s.TrimEnd('=').ToUpperInvariant();
-        int byteCount = s.Length * 5 / 8;
-        byte[] bytes = new byte[byteCount];
-        int bitBuffer = 0, bitsLeft = 0, idx = 0;
-        foreach (char c in s) {
-            int val = B32.IndexOf(c);
-            if (val < 0) throw new ArgumentException("Invalid Base32 char: " + c);
-            bitBuffer = (bitBuffer << 5) | val;
-            bitsLeft += 5;
-            if (bitsLeft >= 8) {
-                bytes[idx++] = (byte)(bitBuffer >> (bitsLeft - 8));
-                bitsLeft -= 8;
-            }
-        }
-        return bytes;
-    }
-    public static string Now(string secret, int digits, int period, string algorithm) {
-        byte[] key = Base32Decode(secret);
-        long counter = DateTimeOffset.UtcNow.ToUnixTimeSeconds() / period;
-        byte[] cnt = BitConverter.GetBytes(counter);
-        if (BitConverter.IsLittleEndian) Array.Reverse(cnt);
-        byte[] hash = (algorithm == "SHA256")
-            ? new HMACSHA256(key).ComputeHash(cnt)
-            : new HMACSHA1(key).ComputeHash(cnt);
-        int offset = hash[hash.Length - 1] & 0x0F;
-        int binary = ((hash[offset] & 0x7F) << 24) | ((hash[offset + 1] & 0xFF) << 16) |
-                     ((hash[offset + 2] & 0xFF) << 8) | (hash[offset + 3] & 0xFF);
-        int otp = binary % (int)Math.Pow(10, digits);
-        return otp.ToString(new string('0', digits));
-    }
-}
-'@
-
-$otp = [Totp]::Now($Base32, $Digits, $Period, $Algorithm)
-
-# === SimplySign Desktop 실행 + 로그인 ===
-$exe = Get-ChildItem -Path 'C:\Program Files\Certum\SimplySign Desktop',
-                          'C:\Program Files (x86)\Certum\SimplySign Desktop' `
-                          -Filter '*.exe' -Recurse -ErrorAction SilentlyContinue |
-       Where-Object { $_.Name -in 'SimplySignDesktop.exe', 'SimplySign Desktop.exe' } |
-       Select-Object -First 1
-
-if (-not $exe) { throw 'SimplySign Desktop executable not found.' }
-
-# 기존 SimplySignDesktop 인스턴스 강제 종료 — 안 그러면 새 로그인 창이 안 떠
-# SendKeys 가 미아가 됨 (알려진 실패 모드).
-Get-Process SimplySignDesktop -ErrorAction SilentlyContinue |
-    Stop-Process -Force -ErrorAction SilentlyContinue
-Start-Sleep -Seconds 2
-
-$proc = Start-Process -FilePath $exe.FullName -PassThru
-Start-Sleep -Seconds 5
-
-$wshell = New-Object -ComObject WScript.Shell
-
-# 윈도우 활성화 (사람이 로그인된 인터랙티브 데스크톱에서는 동작)
-$titleCandidates = @(
-    'SimplySign Desktop', 'proCertum SmartSign SimplySign Desktop',
-    'proCertum SmartSign', 'SmartSign', 'Start SimplySign', 'SimplySign'
-)
-$focused = $false
-for ($i = 0; -not $focused -and $i -lt 30; $i++) {
-    if ($wshell.AppActivate([int]$proc.Id)) { $focused = $true; break }
-    foreach ($t in $titleCandidates) {
-        if ($wshell.AppActivate($t)) { $focused = $true; break }
-    }
-    Start-Sleep -Milliseconds 500
-}
-if (-not $focused) { throw 'SimplySign Desktop window not found.' }
-
-Start-Sleep -Milliseconds 500
-$wshell.SendKeys('^a')
-Start-Sleep -Milliseconds 200
-$wshell.SendKeys($UserId)
-Start-Sleep -Milliseconds 150
-$wshell.SendKeys('{TAB}')
-Start-Sleep -Milliseconds 150
-$wshell.SendKeys($otp)
-Start-Sleep -Milliseconds 150
-$wshell.SendKeys('{ENTER}')
-
-# private key 실접근(SignData)까지 통과해야 성공 — cert 존재만으론 거짓 양성 가능.
-# CNG 키(SimplySign 가상 스마트카드는 CNG/KSP)에 대응하기 위해
-# RSACertificateExtensions.GetRSAPrivateKey 사용 ($cert.PrivateKey 는 CNG에서 null).
-$deadline = (Get-Date).AddSeconds(30)
-while ((Get-Date) -lt $deadline) {
-    $cert = Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert -ErrorAction SilentlyContinue |
-            Select-Object -First 1
-    if ($cert) {
-        $rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($cert)
-        if ($rsa) {
-            try {
-                [void]$rsa.SignData([byte[]](1..32), 'SHA256', 'Pkcs1')
-                Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] SimplySign session refreshed and private key verified. Subject: $($cert.Subject)"
-                return
-            } catch {
-                # 키 핸들은 잡혔는데 SignData 시 throw — KSP 인증 미완. 계속 폴링.
-            }
-        }
-    }
-    Start-Sleep -Seconds 1
-}
-throw 'Session refresh did not produce a working private key (signtool-ready) within 30s.'
+# repo가 어디 클론되어 있는지에 따라 경로 조정. 셀프호스트 러너의 작업 디렉터리는
+# 잡마다 재생성되므로, 영속 경로(예: C:\repos\okrbest-desktop)에 별도로 클론해 두는 것을 권장.
+$repoRoot = 'C:\repos\okrbest-desktop'
+New-Item -ItemType Directory -Path 'C:\certum' -Force | Out-Null
+Copy-Item "$repoRoot\scripts\refresh-session.ps1" 'C:\certum\refresh-session.ps1' -Force
 ```
+
+> **왜 영속 클론이 필요한가**: Task Scheduler 작업은 빌드 잡과 독립적으로 110분마다 실행됩니다. 잡 실행 중 _work 디렉터리에 있는 카피에 의존하면 잡이 끝났을 때 사라져 갱신이 실패합니다.
+
+스크립트 핵심 동작 (전문은 repo 파일 참조):
+
+- `CERTUM_OTP_URI` / `CERTUM_USERID` 환경변수에서 OTP를 생성
+- 기존 SimplySignDesktop 프로세스 강제 종료 후 재실행 (이미 떠 있으면 새 로그인 창이 안 떠 미아 → 알려진 실패 모드)
+- 종료 직후 store 의 stale cert (`Subject ~ 'OKRBEST'`) 제거. 9.4.3.x launcher 는 cert 가 store 에 있으면 "이미 인증됨" 으로 판단해 로그인 창을 안 띄움 → fresh 로그인 미발생 → CNG 핸들 죽은 채로 30초 동안 "잘못된 UID". 핸들이 이미 죽었으므로 제거해도 손해 없음
+- 로그인 입력은 **Win32 SendMessage 직접 송신** — UI Automation 으로 EDIT/BUTTON 컨트롤의 `NativeWindowHandle` 만 추출하고, 텍스트는 `WM_SETTEXT`, Ok 클릭은 `BM_CLICK` 으로 보냄. SendKeys + Tab 방식은 SimplySign 7.6 launcher 의 새 UI 거동 (초기 포커스 Token 필드 + "Remember last logged ID" 자동완성) 때문에 username/OTP 가 잘못된 필드에 들어가는 함정이 있고, ValuePattern/SetFocus/InvokePattern 도 7.6 의 UI Automation provider 가 모든 컨트롤을 ControlType.Pane + IsKeyboardFocusable=False 로 노출해 모두 거부됨
+- ID/Token 식별: 두 EDIT 의 `BoundingRectangle.Top` 으로 정렬 — visual 위쪽이 ID, 아래쪽이 Token
+- 30s 폴링 — `RSACertificateExtensions.GetRSAPrivateKey` + `SignData` 양쪽이 모두 통과해야 성공으로 판정 (cert 존재만으론 거짓 양성)
+- 두 호출 모두 try/catch 로 감쌈 — `"잘못된 UID입니다"` 같이 GetRSAPrivateKey 자체가 throw 하는 상태에서도 폴링 사이클을 끝까지 돌리기 위함
+- SignData 호출은 PS 7 / .NET 8 에서 `'SHA256'` / `'Pkcs1'` 문자열 자동변환이 안 돼 `HashAlgorithmName` / `RSASignaturePadding` typed 값으로 호출
+- 로그인 윈도우를 못 찾으면 UI Automation 트리 덤프를 트랜스크립트에 출력 (다음 launcher 버전 거동 변화 시 진단용)
 
 ### 4.2 Task Scheduler 등록
 
 **관리자 PowerShell**:
 
-```powershell
-# 폴더 생성
-New-Item -ItemType Directory -Path 'C:\certum' -Force | Out-Null
-# refresh-session.ps1 파일을 C:\certum\refresh-session.ps1 에 저장 (위 내용 복사)
+> 4.1 의 `Copy-Item` 으로 `C:\certum\refresh-session.ps1` 가 이미 배포되어 있다고 가정.
 
+```powershell
 # 매 1시간 50분마다 실행하는 스케줄 작업 (2시간 세션 만료 직전 갱신)
 # pwsh.exe는 절대경로로 — Task Scheduler는 App Execution Alias(WindowsApps\pwsh.exe)를 해석 못 함
 $pwsh = 'C:\Program Files\PowerShell\7\pwsh.exe'
@@ -516,7 +384,7 @@ Get-Process | Where-Object { $_.MainWindowTitle -ne '' -and $_.Name -match 'Simp
     Select-Object Id, Name, MainWindowTitle
 ```
 
-여기 보이는 타이틀이 [refresh-session.ps1](file:///C:/certum/refresh-session.ps1) 의 `$titleCandidates` 배열에 없으면 추가하세요. 동일 변경이 워크플로(`.github/workflows/`)에도 필요할 수 있습니다.
+여기 보이는 타이틀이 [scripts/refresh-session.ps1](../scripts/refresh-session.ps1) 의 `$titleCandidates` 배열에 없으면 repo 에 추가 후 §7.5 절차로 러너 머신에 재배포하세요. 동일 변경이 [scripts/certum-sign.ps1](../scripts/certum-sign.ps1) 에도 필요할 수 있습니다 (호스트 러너 fallback 경로).
 
 ---
 
@@ -701,6 +569,26 @@ Certum 인증서 만료 30일 전부터 갱신 절차:
 
 활성 시간(2.3) 외에 자동 재부팅이 발생할 수 있음. 재부팅 후 위 7.3 흐름이 정상 작동하는지 분기마다 1회는 수동 검증 권장.
 
+### 7.5 `refresh-session.ps1` 갱신 (repo 변경 시)
+
+[scripts/refresh-session.ps1](../scripts/refresh-session.ps1) 이 repo에서 갱신되면 러너 머신의 배포본도 동기화 필요. Task Scheduler 가 `C:\certum\refresh-session.ps1` 절대경로를 참조하므로 단순 복사로 끝.
+
+```powershell
+# 영속 클론 위치(셋업 시 결정한 경로)에서 pull
+$repoRoot = 'C:\repos\okrbest-desktop'
+git -C $repoRoot pull --ff-only
+
+# C:\certum\ 으로 복사
+Copy-Item "$repoRoot\scripts\refresh-session.ps1" 'C:\certum\refresh-session.ps1' -Force
+
+# 즉시 1회 검증
+Start-ScheduledTask -TaskName 'CertumSessionRefresh'
+Start-Sleep -Seconds 30
+(Get-ScheduledTask -TaskName 'CertumSessionRefresh' | Get-ScheduledTaskInfo).LastTaskResult  # 0 이어야 정상
+```
+
+> Task Scheduler 액션 자체는 변경할 필요 없음 — 가리키는 경로가 동일.
+
 ---
 
 ## 8. 자주 발생하는 문제와 해결
@@ -819,7 +707,8 @@ try { [void]$rsa.SignData([byte[]](1..32),'SHA256','Pkcs1'); 'SIGN OK' } catch {
 - [ ] **사람이 1회 OTP로 SimplySign 인증** (모바일 앱)
 - [ ] `Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert` 결과 확인
 - [ ] `CERTUM_OTP_URI`, `CERTUM_USERID` 시스템 환경변수 등록
-- [ ] `C:\certum\refresh-session.ps1` 배치
+- [ ] repo 영속 클론 (예: `C:\repos\okrbest-desktop`) — Task Scheduler 작업이 빌드 잡과 독립적으로 도므로 _work 디렉터리 카피에 의존 불가
+- [ ] `scripts/refresh-session.ps1` → `C:\certum\refresh-session.ps1` 복사 (§4.1)
 - [ ] Task Scheduler `CertumSessionRefresh` 등록 + 즉시 1회 실행 검증
 - [ ] GitHub Actions self-hosted runner 등록 + Windows 서비스 시작
 - [ ] GitHub Settings → Actions → Runners 페이지에서 'Idle' 상태 확인
@@ -834,6 +723,7 @@ try { [void]$rsa.SignData([byte[]](1..32),'SHA256','Pkcs1'); 'SIGN OK' } catch {
 - [ ] runner 서비스 Status `Running`
 - [ ] Windows Update 적용 여부
 - [ ] BitLocker 보호 상태 (`manage-bde -status`)
+- [ ] `C:\certum\refresh-session.ps1` 가 repo 최신 버전과 동일한지 확인 (`Get-FileHash` 비교, §7.5 절차로 동기화)
 
 ### 인증서 갱신 시 (연 1회)
 
