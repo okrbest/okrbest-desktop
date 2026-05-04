@@ -9,3 +9,28 @@
 # cherry-pick 시 modify/delete 충돌 발생. OKR Best 자체 구현 유지.
 72cdde887518fcc5fa4e6e4253e71b920b16cd24
 15baa6f888f46d59246ebf86cf4848b119927951
+
+# 2026-05-04 동기화 시 추가 — OKR Best가 이미 다른 방식으로 적용한 commit
+# electron-builder.json -> electron-builder.ts 마이그레이션 (#3694)
+# OKR Best는 이미 electron-builder.ts를 자체 적용. patch-id 다름.
+1b916ba9185442d85e775e422e269adc8f6aaa2b
+
+# 2026-05-04 동기화 시 추가 — OKR Best가 다른 방향으로 결정한 commit
+# Don't specify mac provisioning profile in electron-builder (#3722)
+# OKR Best는 Communication Notifications entitlement 때문에 Developer ID 빌드에도
+# provisioning profile을 임베딩하기로 결정 (spec-docs/APPLE_DEVELOPER_ACCOUNT_SETUP.md
+# 9.2 갱신 예정). upstream 방향과 반대.
+925a450e151edf54df2f26739b60f33ebb2acf16
+
+# 2026-05-04 동기화 시 추가 — 별도 작업으로 분리 (큰 변경)
+# Upgrade Electron 40.8.4 -> 41.2.0 (#3780): 메이저 업그레이드. ESM 자동 감지 이슈
+# (resources/mac/entitlements.mac.plist Communication Notifications 관련) 별도 검증 필요.
+8cbe8a995df289d9fe168d685bc0ac7eac2de7aa
+
+# Migrate Desktop E2E to Playwright (#3728): e2e/ 디렉토리 전면 마이그레이션.
+# OKR Best 자체 E2E 설정과의 호환성 검증 필요 — 별도 작업.
+59b8a5aa298f1d28f8d86ace48c1c14c29b92329
+
+# Move CLAUDE.md to AGENTS.md (#3779): OKR Best는 이미 CLAUDE.md를 OKR Best 용으로
+# 광범위하게 재작성. 단순 rename으로는 OKR Best 콘텐츠 손실. 별도 정책 결정 필요.
+d05493c0b9ae76d5625007661aad42cc66b7fb2f
