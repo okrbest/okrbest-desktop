@@ -549,7 +549,8 @@ security cms -D -i ~/secure/apple-signing/mas.provisionprofile | grep -A1 "AppID
 3. 팀원 공유는 Secret Manager(1Password, HashiCorp Vault 등)로만
 4. 인력 변경 시 관련 인증서·키 즉시 폐기 및 재발급
 5. 인증서 만료 **30일 전 갱신** 일정 등록 (Developer ID는 5년, Mac App Distribution은 1년, CA/Browser Forum 규정에 따라 단축될 수 있음)
-6. App Store Connect API Key는 **Revoke** 버튼으로 즉시 비활성화 가능 — 유출 의심 시 바로 Revoke 후 재발급
+6. **인증서를 갱신·재발급하면 9.1의 MAS provisioning profile도 같은 작업 안에서 함께 재생성**하고 `OKRBEST_DESKTOP_MAC_APP_STORE_MAS_PROFILE` 시크릿을 갱신할 것. profile에는 발급 당시의 cert SHA-1이 임베딩돼 있어 cert만 바꾸면 MAS 업로드 시 모든 바이너리가 *"Invalid Code Signing. The executable ... must be signed with the certificate that is contained in the provisioning profile"* 에러(409)로 거절됨. **cert · profile · `CSC_LINK` · `MAS_PROFILE` 네 가지는 항상 한 짝으로 다룸** — 하나만 갱신 금지.
+7. App Store Connect API Key는 **Revoke** 버튼으로 즉시 비활성화 가능 — 유출 의심 시 바로 Revoke 후 재발급
 
 ---
 
