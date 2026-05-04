@@ -2,3 +2,10 @@
 # (충돌 해결 시 okrbest 설정 유지로 인해 --skip 사용한 경우)
 # 형식: 한 줄에 하나의 커밋 해시 (전체 또는 짧은 해시), #으로 주석
 3a3aa0a5054de69ad50b600ed057ee2d05f38a49
+
+# 2026-05-04 동기화 시 추가 — OKR Best가 자체 방식으로 처리한 auto-updater 관련
+# OKR Best는 src/main/autoUpdater.ts를 이미 삭제 + auto-update를 자체 방식으로 처리.
+# upstream의 in-app notice + NSIS 제거 commit은 같은 컨셉이지만 patch-id가 어긋나
+# cherry-pick 시 modify/delete 충돌 발생. OKR Best 자체 구현 유지.
+72cdde887518fcc5fa4e6e4253e71b920b16cd24
+15baa6f888f46d59246ebf86cf4848b119927951
