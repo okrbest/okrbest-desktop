@@ -5,8 +5,6 @@
 
 import {dialog} from 'electron';
 
-import {dialog} from 'electron';
-
 import CallsWidgetWindow from 'app/callsWidgetWindow';
 import MainWindow from 'app/mainWindow/mainWindow';
 import ModalManager from 'app/mainWindow/modals/modalManager';
