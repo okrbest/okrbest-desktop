@@ -13,6 +13,7 @@ defaults:
 env:
   TERM: xterm
   OKRBEST_WIN_INSTALLERS: 1
+  OKRBEST_DESKTOP_BUILD_SENTRYDSN: ${{ secrets.OKRBEST_DESKTOP_BUILD_SENTRYDSN }}
 
 jobs:
   begin-notification:
