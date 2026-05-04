@@ -1,6 +1,9 @@
 // Copyright (c) 2016-present Mattermost, Inc. All Rights Reserved.
+// Copyright (c) 2024-present OKR Best. All Rights Reserved.
 // See LICENSE.txt for license information.
-/* eslint-disable no-console -- Logging is intentional in CI utility scripts */
+// Modified for OKR Best project.
+
+/* eslint-disable no-console */
 
 /**
  * Update initial pending status for all platforms
