@@ -20,7 +20,7 @@ function getMacVersions() {
 }
 
 const config = {
-    appId: 'Mattermost.Desktop',
+    appId: 'OKRBest.Desktop',
     artifactName: '${version}/${name}-${version}-${os}-${arch}.${ext}',
     directories: {
         buildResources: 'src/assets',
@@ -57,7 +57,7 @@ const config = {
     ],
     protocols: [
         {
-            name: 'Mattermost',
+            name: 'OKRBEST',
             schemes: [
                 'mattermost',
             ],
@@ -67,7 +67,7 @@ const config = {
     afterPack: 'scripts/afterpack.js',
     deb: {
         artifactName: '${version}/${name}_${version}-1_${arch}.${ext}',
-        synopsis: 'Mattermost Desktop App',
+        synopsis: 'OKRBEST Desktop App',
         depends: [
             'libnotify4',
             'libxtst6',
@@ -90,7 +90,7 @@ const config = {
             'rpm',
             'flatpak',
         ],
-        appId: 'com.Mattermost.Desktop',
+        appId: 'com.OKRBest.Desktop',
         extraFiles: [
             {
                 filter: [
@@ -133,7 +133,7 @@ const config = {
         extendInfo: {
             NSMicrophoneUsageDescription: 'Microphone access is used to capture audio for voice communication and recordings.',
             NSCameraUsageDescription: 'Camera access is used to capture video for video conferencing and recordings.',
-            NSFocusStatusUsageDescription: 'Focus status is used by Mattermost to determine whether to send notifications or not.',
+            NSFocusStatusUsageDescription: 'Focus status is used by OKRBEST to determine whether to send notifications or not.',
             LSFileQuarantineEnabled: true,
         },
         ...getMacVersions(),
@@ -194,7 +194,7 @@ const config = {
             certificateProfileName: 'mattermost-desktop-app',
             codeSigningAccountName: 'DesktopAppCodeSigning',
             endpoint: 'https://eus.codesigning.azure.net',
-            publisherName: 'CN="Mattermost, Inc.", O="Mattermost, Inc.", L=Palo Alto, S=California, C=US',
+            publisherName: 'CN="OKRBEST, Inc.", O="OKRBEST, Inc.", L=Palo Alto, S=California, C=US',
         } : null,
     },
     msi: {

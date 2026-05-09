@@ -1,12 +1,12 @@
 {
   "name": "mattermost-desktop",
-  "productName": "Mattermost",
+  "productName": "OKRBEST",
   "version": "6.3.0-develop.1",
-  "description": "Mattermost",
+  "description": "OKRBEST",
   "main": "dist/index.js",
-  "author": "Mattermost, Inc. <feedback@mattermost.com>",
+  "author": "OKRBEST, Inc.",
   "license": "Apache-2.0",
-  "desktopName": "Mattermost.Desktop",
+  "desktopName": "OKRBest.Desktop",
   "homepage": "https://mattermost.com",
   "engines": {
     "node": ">=18.0.0"

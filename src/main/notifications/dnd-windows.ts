@@ -21,7 +21,7 @@ function getWindowsDoNotDisturb() {
     case 2:
         return true;
     case 1:
-        return !(isPriority('Mattermost.Desktop').value);
+        return !(isPriority('OKRBest.Desktop').value);
     default:
         return false;
     }

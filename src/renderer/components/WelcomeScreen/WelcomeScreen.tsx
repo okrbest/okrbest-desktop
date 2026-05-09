@@ -42,7 +42,7 @@ function WelcomeScreen({
             title: formatMessage({id: 'renderer.components.welcomeScreen.slides.welcome.title', defaultMessage: 'Welcome'}),
             subtitle: formatMessage({
                 id: 'renderer.components.welcomeScreen.slides.welcome.subtitle',
-                defaultMessage: 'Mattermost is an open source collaboration platform for mission-critical work. Secure, flexible, and integrated with the tools you love.',
+                defaultMessage: 'OKRBEST is a collaboration platform for OKR-driven teams. Align goals, track progress, and deliver mission-critical work together.',
             }),
             image: (
                 <ThreadsEmptyImage/>
