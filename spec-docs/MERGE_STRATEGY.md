@@ -1,4 +1,4 @@
-# OKR Best 병합 전략 가이드
+# OKRBEST 병합 전략 가이드
 
 > 원본 오픈소스(Mattermost) 추적과 선형 히스토리 유지를 동시에 달성하는 Git 병합 전략
 
@@ -77,7 +77,7 @@
 │              │                                              │
 │              │ git cherry-pick -x                           │
 │              ▼                                              │
-│  master (OKR Best 메인)                                     │
+│  master (OKRBEST 메인)                                     │
 │  ──●──●──●──●'─●──●──►                                      │
 │     X  Y  Z  D' a' b'  (선형 히스토리)                       │
 │              ▲                                              │
@@ -96,7 +96,7 @@
 | ----------------- | ------------ | -------------------- | ----------------- |
 | `upstream/master` | Remote       | Mattermost 원본      | 읽기 전용         |
 | `upstream-master` | Local        | Upstream 동기화 추적 | Fast-forward only |
-| `master`          | Local/Remote | OKR Best 메인 개발   | 선형 유지         |
+| `master`          | Local/Remote | OKRBEST 메인 개발   | 선형 유지         |
 | `feature/*`       | Local        | 기능 개발            | → master로 rebase |
 | `hotfix/*`        | Local        | 긴급 수정            | → master로 rebase |
 
@@ -382,7 +382,7 @@ git log --cherry-mark --oneline upstream-master ^master
 
 set -e
 
-echo "=== OKR Best Upstream 동기화 ==="
+echo "=== OKRBEST Upstream 동기화 ==="
 echo ""
 
 # 1. Upstream 최신화

@@ -1,6 +1,6 @@
 # VS Code 개발 환경 설정 가이드
 
-이 문서는 OKR Best Desktop 프로젝트에서 ESLint 충돌 없이 개발하기 위한 VS Code 설정 방법을 안내합니다.
+이 문서는 OKRBEST Desktop 프로젝트에서 ESLint 충돌 없이 개발하기 위한 VS Code 설정 방법을 안내합니다.
 
 ## 목차
 
@@ -157,12 +157,12 @@ code --install-extension streetsidesoftware.code-spell-checker
 // ✓ 올바른 예
 import {app, BrowserWindow} from 'electron';
 
-const config = {name: 'OKR Best', version: '1.0.0'};
+const config = {name: 'OKRBEST', version: '1.0.0'};
 
 // ✗ 잘못된 예
 import { app, BrowserWindow } from "electron";
 
-const config = { name: "OKR Best", version: "1.0.0" };
+const config = { name: "OKRBEST", version: "1.0.0" };
 ```
 
 ---

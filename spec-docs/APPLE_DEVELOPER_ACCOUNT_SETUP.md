@@ -1,6 +1,6 @@
 # Apple 개발자 계정 작업 가이드 (macOS 초보자용)
 
-> 이 문서는 **개인 Apple 개발자 계정(유료 가입 완료)** 상태에서, OKR Best Desktop 빌드에 필요한 Apple 관련 작업을 처음부터 끝까지 수행하는 방법을 설명합니다. 2026-04 기준 Apple Developer Portal / App Store Connect UI와 이 저장소 코드 기준값에 맞춰 작성되었습니다.
+> 이 문서는 **개인 Apple 개발자 계정(유료 가입 완료)** 상태에서, OKRBEST Desktop 빌드에 필요한 Apple 관련 작업을 처음부터 끝까지 수행하는 방법을 설명합니다. 2026-04 기준 Apple Developer Portal / App Store Connect UI와 이 저장소 코드 기준값에 맞춰 작성되었습니다.
 
 ---
 
@@ -126,7 +126,7 @@ sed -i '' 's/72EQ97MVJ8/<YOUR_TEAM_ID>/g' resources/mac/entitlements.mas.plist
 3. 우상단 `+` 버튼 클릭
 4. `App IDs` 선택 → `Continue`
 5. Type 선택 화면에서 `App` 선택 → `Continue`
-6. `Description` 입력 (예: `OKR Best Desktop`)
+6. `Description` 입력 (예: `OKRBEST Desktop`)
 7. **Bundle ID** 섹션에서 `Explicit` 선택, 값 입력: **`OKRBest.Desktop`**
 8. **Capabilities** 체크박스 활성화 — App ID 포털에서 켜야 하는 건 다음 2개뿐입니다:
    - **App groups** *(체크만 함 — `Configure` 버튼은 누르지 말 것. 이유는 3.3 참조)*
@@ -360,7 +360,7 @@ Apple Developer Portal의 **App ID 등록(3.2)과 App Store Connect의 "My Apps"
 3. 우상단 **`+`** → **`New App`**
 4. 팝업에서:
    - **Platforms**: `macOS` 체크 (iOS/tvOS는 비활성)
-   - **Name**: 사용자에게 보일 앱 이름 (예: `OKR Best Desktop` — 나중에 제출 전 변경 가능)
+   - **Name**: 사용자에게 보일 앱 이름 (예: `OKRBEST Desktop` — 나중에 제출 전 변경 가능)
    - **Primary Language**: `Korean (South Korea)` 또는 `English (U.S.)` (사용자 선호)
    - **Bundle ID**: 드롭다운에서 **`OKRBest.Desktop`** 선택
      - 드롭다운에 안 보이면 3.2의 App ID 등록이 안 된 상태. 그 단계부터 다시 확인.

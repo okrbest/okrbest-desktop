@@ -7,8 +7,8 @@ FULL_PATH=`pwd`
 cd "${WORKING_DIR}"
 cat <<EOS > OKRBest.desktop
 [Desktop Entry]
-Name=OKR Best
-Comment=OKR Best Desktop application for Linux
+Name=OKRBEST
+Comment=OKRBEST Desktop application for Linux
 Exec="${FULL_PATH}/okrbest-desktop" %U
 Terminal=false
 Type=Application

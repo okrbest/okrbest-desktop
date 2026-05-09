@@ -1,6 +1,6 @@
 # fb1ba58 이후 커밋 리브랜딩 영향 검토
 
-> fb1ba585cdd60f5cee79207967ea088b75f34d6c (workflows: only upload artifacts to new bucket) 이후 upstream-master 커밋들 중 OKR Best 리브랜딩에 영향이 있어 수정이 필요한 항목
+> fb1ba585cdd60f5cee79207967ea088b75f34d6c (workflows: only upload artifacts to new bucket) 이후 upstream-master 커밋들 중 OKRBEST 리브랜딩에 영향이 있어 수정이 필요한 항목
 
 ---
 
@@ -44,9 +44,9 @@ GITHUB_TOKEN: ${{ secrets.OKRBEST_DESKTOP_BUILD_GH_TOKEN }}
 **상태:** Mattermost 전용 문서로 작성됨
 
 **수정 제안:**
-- 제목: `Mattermost Desktop App` → `OKR Best Desktop App`
+- 제목: `Mattermost Desktop App` → `OKRBEST Desktop App`
 - Repository: `https://github.com/mattermost/desktop` → `https://github.com/okrbest/okrbest-desktop`
-- 본문 내 "Mattermost" → "OKR Best" (문맥에 따라)
+- 본문 내 "Mattermost" → "OKRBEST" (문맥에 따라)
 - `mattermost-desktop://` 프로토콜은 내부 프로토콜명으로 유지 가능 (기술적 식별자)
 
 ---
@@ -63,7 +63,7 @@ const filteredUserAgent = baseUserAgent.filter((ua) => !ua.startsWith('Mattermos
 return `${filteredUserAgent.join(' ')} Mattermost/${app.getVersion()}`;
 ```
 
-**수정:** OKR Best 브랜드 반영
+**수정:** OKRBEST 브랜드 반영
 ```typescript
 const filteredUserAgent = baseUserAgent.filter((ua) => !ua.startsWith('Mattermost') && !ua.startsWith('OKRBest'));
 return `${filteredUserAgent.join(' ')} OKRBest/${app.getVersion()}`;

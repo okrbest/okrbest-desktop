@@ -1,4 +1,4 @@
-# OKR Best Desktop CI/CD 가이드
+# OKRBEST Desktop CI/CD 가이드
 
 > GitHub Actions 기반 CI/CD 파이프라인, 배포 환경 설정, 운영 체크리스트
 

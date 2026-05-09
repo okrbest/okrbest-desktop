@@ -1,6 +1,6 @@
-# OKR Best Desktop 아키텍처 문서
+# OKRBEST Desktop 아키텍처 문서
 
-> Mattermost Desktop 기반 OKR Best Desktop 프로젝트의 전체 아키텍처를 설명합니다.
+> Mattermost Desktop 기반 OKRBEST Desktop 프로젝트의 전체 아키텍처를 설명합니다.
 
 ---
 

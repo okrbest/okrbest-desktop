@@ -192,7 +192,7 @@ signtool verify /pa myapp.exe
 
 ---
 
-## 7. CI/CD 설정 (OKR Best Desktop)
+## 7. CI/CD 설정 (OKRBEST Desktop)
 
 ### 7.1 필요한 GitHub Secrets
 

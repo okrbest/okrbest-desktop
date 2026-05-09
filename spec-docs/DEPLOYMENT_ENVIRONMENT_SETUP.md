@@ -1,6 +1,6 @@
 # 배포 환경 설정 가이드
 
-OKR Best Desktop (Electron) 앱을 빌드·서명·공증·배포하기 위해 필요한 모든 환경 변수, 시크릿, 인증서, 계정, 설정 파일을 항목별로 정리한 체크리스트다. 신규 메인테이너가 GitHub Secrets를 새로 구성하거나 로컬에서 릴리즈 빌드를 재현할 때 참고하기 위함이다.
+OKRBEST Desktop (Electron) 앱을 빌드·서명·공증·배포하기 위해 필요한 모든 환경 변수, 시크릿, 인증서, 계정, 설정 파일을 항목별로 정리한 체크리스트다. 신규 메인테이너가 GitHub Secrets를 새로 구성하거나 로컬에서 릴리즈 빌드를 재현할 때 참고하기 위함이다.
 
 참고 소스: [electron-builder.ts](../electron-builder.ts), [.github/workflows/](../.github/workflows/), [scripts/](../scripts/), [webpack.config.base.js](../webpack.config.base.js), [APPLE_DEVELOPER_ACCOUNT_SETUP.md](APPLE_DEVELOPER_ACCOUNT_SETUP.md), [Certum-SimplySign.md](Certum-SimplySign.md), [CI_CD.md](CI_CD.md)
 

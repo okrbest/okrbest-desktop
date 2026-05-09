@@ -1,6 +1,6 @@
 # AWS S3 & 자동 업데이트 설정 가이드
 
-이 문서는 OKR Best Desktop의 AWS 인프라를 처음 세팅하는 사람을 위한 **순차 실행 가이드**다. 각 STEP을 위에서 아래로 그대로 따라 하면 작동하는 상태가 된다.
+이 문서는 OKRBEST Desktop의 AWS 인프라를 처음 세팅하는 사람을 위한 **순차 실행 가이드**다. 각 STEP을 위에서 아래로 그대로 따라 하면 작동하는 상태가 된다.
 
 이 프로젝트는 세 가지 독립된 S3 경로를 쓴다. **PART A**만 완료하면 정식 릴리즈와 자동 업데이트가 작동한다. PART B·C는 선택이며 필요할 때만 추가한다.
 
@@ -898,7 +898,7 @@ E2E는 AWS 외에도 Zephyr, 테스트 계정 등 **총 7개 시크릿**이 필�
 | `OKRBEST_DESKTOP_E2E_WEBHOOK_URL` | 결과 알림 Mattermost webhook URL |
 | `OKRBEST_DESKTOP_E2E_ZEPHYR_API_KEY` | Zephyr API Key (Zephyr 미사용 시 빈 값) |
 
-**테스트 계정 준비**: 테스트용 OKR Best 서버 인스턴스에서 E2E 전용 계정을 만들어두고 그 값을 넣는다. 프로덕션 계정을 쓰면 안 된다.
+**테스트 계정 준비**: 테스트용 OKRBEST 서버 인스턴스에서 E2E 전용 계정을 만들어두고 그 값을 넣는다. 프로덕션 계정을 쓰면 안 된다.
 
 ---
 

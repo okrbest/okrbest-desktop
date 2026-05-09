@@ -1,4 +1,4 @@
-# OKR Best Desktop 개발 환경 설정 가이드
+# OKRBEST Desktop 개발 환경 설정 가이드
 
 > Windows 11 WSL 및 macOS에서의 개발 환경 설정 방법
 

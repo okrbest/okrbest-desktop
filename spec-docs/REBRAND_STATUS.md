@@ -1,4 +1,4 @@
-# OKR Best 리브랜딩 현황
+# OKRBEST 리브랜딩 현황
 
 > 마지막 업데이트: 2026-03-11
 >
@@ -13,7 +13,7 @@
 
 | 항목 | 변경 전 | 변경 후 | 상태 |
 |------|---------|---------|------|
-| 제품명 | Mattermost Desktop | OKR Best | 완료 |
+| 제품명 | Mattermost Desktop | OKRBEST Desktop | 완료 |
 | 패키지명 | mattermost-desktop | okrbest-desktop | 완료 |
 | 앱 ID | Mattermost.Desktop | OKRBest.Desktop | 완료 |
 | Linux appId | com.Mattermost.Desktop | com.OKRBest.Desktop | 완료 |
@@ -32,9 +32,9 @@
 | 파일 | 필드 | 값 | 상태 |
 |------|------|-----|------|
 | `package.json` | `name` | `okrbest-desktop` | 완료 |
-| `package.json` | `productName` | `OKR Best` | 완료 |
-| `package.json` | `description` | `OKR Best Desktop` | 완료 |
-| `package.json` | `author` | `OKR Best` | 완료 |
+| `package.json` | `productName` | `OKRBEST` | 완료 |
+| `package.json` | `description` | `OKRBEST Desktop` | 완료 |
+| `package.json` | `author` | `OKRBEST` | 완료 |
 | `package.json` | `desktopName` | `OKRBest.Desktop` | 완료 |
 | `package.json` | `homepage` | `https://okr.best` | 완료 |
 | `package.json` | `repository` | `git://github.com/okrbest/okrbest-desktop.git` | 완료 |
@@ -44,16 +44,16 @@
 
 - `appId`: `OKRBest.Desktop`
 - `linux.appId`: `com.OKRBest.Desktop`
-- `protocols[0].name`: `OKR Best`
+- `protocols[0].name`: `OKRBEST`
 - `protocols[0].schemes`: `okrbest` 포함, `mattermost` 호환 스키마 유지
-- `deb.synopsis`: `OKR Best Desktop App`
-- macOS `NSFocusStatusUsageDescription`: OKR Best 기준 문구 적용
+- `deb.synopsis`: `OKRBEST Desktop App`
+- macOS `NSFocusStatusUsageDescription`: OKRBEST 기준 문구 적용
 
 상태: 완료
 
 ### 1.3 README
 
-- `README.md` 제목, 제품 설명, 다운로드/문서 링크, 데이터 디렉터리 예시가 OKR Best 기준으로 반영됨
+- `README.md` 제목, 제품 설명, 다운로드/문서 링크, 데이터 디렉터리 예시가 OKRBEST 기준으로 반영됨
 
 상태: 완료
 
@@ -63,16 +63,16 @@
 - i18n 키 리브랜딩 확인:
   - `notMattermost` -> `notOKRBest`
   - `MattermostVersionX` -> `VersionX`
-- 사용자 노출 기본 문구도 OKR Best 기준으로 반영됨
+- 사용자 노출 기본 문구도 OKRBEST 기준으로 반영됨
 
 상태: 완료
 
 ### 1.5 소스 코드/상수 리브랜딩
 
 - `URLValidationStatus.NotMattermost` -> `NotOKRBest`
-- `src/common/config/buildConfig.ts` 내 릴리스/문서 URL이 OKR Best 기준으로 반영됨
+- `src/common/config/buildConfig.ts` 내 릴리스/문서 URL이 OKRBEST 기준으로 반영됨
 - `src/main/utils.ts`, `src/main/notifications/dnd-windows.ts`의 앱 식별자 반영됨
-- `src/common/constants.ts` 외부 링크가 이미 OKR Best URL로 반영됨
+- `src/common/constants.ts` 외부 링크가 이미 OKRBEST URL로 반영됨
 
 상태: 완료
 
@@ -82,13 +82,13 @@
 - `resources/windows/gpo/en-US/okrbest.adml`
 - `resources/windows/gpo/README.md`
 
-위 파일들의 파일명과 표시 문구가 OKR Best 기준으로 반영됨.
+위 파일들의 파일명과 표시 문구가 OKRBEST 기준으로 반영됨.
 
 상태: 완료
 
 ### 1.7 릴리스 스크립트/패치 일부
 
-- `scripts/generate_release_markdown.sh`: 릴리스 파일명 패턴과 URL이 OKR Best 기준으로 반영됨
+- `scripts/generate_release_markdown.sh`: 릴리스 파일명 패턴과 URL이 OKRBEST 기준으로 반영됨
 - `patches/app-builder-lib+26.6.0.patch`: MSI 설치 경로, 실행 파일명, 메시지 반영됨
 
 상태: 완료
@@ -103,7 +103,7 @@
 
 ### 1.9 저작권 헤더
 
-- 다수의 파일에 OKR Best 추가 저작권 라인이 반영됨
+- 다수의 파일에 OKRBEST 추가 저작권 라인이 반영됨
 - 원본 `Mattermost, Inc.` 저작권 라인은 Apache 2.0 및 upstream 추적을 위해 유지되는 것이 정상임
 
 상태: 완료

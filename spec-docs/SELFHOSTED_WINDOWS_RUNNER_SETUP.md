@@ -1,6 +1,6 @@
 # Self-hosted Windows 러너 + Certum SimplySign 영구 세션 구축 가이드
 
-> 이 문서는 **Windows 11 Pro 1대를 GitHub Actions self-hosted 러너로 구축**해 OKR Best Desktop의 nightly Windows 빌드와 Certum SimplySign 코드 서명을 24/7 자동화하는 방법을 처음부터 끝까지 안내합니다. 2026-04 기준 GitHub Actions 호스트 러너에서 SimplySign Desktop GUI 인증이 동작하지 않는 한계를 우회하기 위한 패턴입니다.
+> 이 문서는 **Windows 11 Pro 1대를 GitHub Actions self-hosted 러너로 구축**해 OKRBEST Desktop의 nightly Windows 빌드와 Certum SimplySign 코드 서명을 24/7 자동화하는 방법을 처음부터 끝까지 안내합니다. 2026-04 기준 GitHub Actions 호스트 러너에서 SimplySign Desktop GUI 인증이 동작하지 않는 한계를 우회하기 위한 패턴입니다.
 
 ## 0. 이 문서로 완료되는 것
 

@@ -1,4 +1,4 @@
-# OKR Best Desktop for Linux
+# OKRBEST Desktop for Linux
 
 ## Table of Contents
 
@@ -56,7 +56,7 @@ After launching, you need to configure the application to interact with your ser
 4. Click **Add**.
 5. Click **Save**.
 
-More guides are available at [OKR Best Documentation](https://docs.okrbest.com/).
+More guides are available at [OKRBEST Documentation](https://docs.okrbest.com/).
 
 
 ## Contributing
