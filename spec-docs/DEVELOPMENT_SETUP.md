@@ -12,6 +12,7 @@
 4. [Windows 11 + WSL Ubuntu 환경 설정](#4-windows-11--wsl-ubuntu-환경-설정)
 5. [macOS 환경 설정](#5-macos-환경-설정)
    - [Python 버전 관리 (uv)](#python-버전-관리-uv) — 모든 플랫폼 공통
+   - [E2E 테스트 환경](#e2e-테스트-환경) — Playwright 기반
 6. [공통 프로젝트 설정](#6-공통-프로젝트-설정)
 7. [개발 명령어](#7-개발-명령어)
 8. [문제 해결](#8-문제-해결)
@@ -536,6 +537,171 @@ uv run pytest
 
 ---
 
+## E2E 테스트 환경
+
+이 프로젝트는 [Playwright](https://playwright.dev/) 기반 E2E 테스트 스위트를 [e2e/](../e2e/) 서브 패키지로 운영합니다. 단위 테스트(`npm run test:unit`)와 별도이며 별도의 의존성·런타임 요구사항을 가집니다.
+
+### 디렉토리 구조
+
+```
+e2e/
+├── package.json                # 별도 npm 패키지 (desktop-e2e), Playwright 의존성
+├── playwright.config.ts        # 워커 수, 타임아웃, 리포터, 플랫폼별 grep
+├── merge.playwright.config.ts  # CI에서 blob 리포트 병합용
+├── global-setup.ts             # macOS 윈도우 복원 차단 등 글로벌 hook
+├── global-teardown.ts          # 잔여 electron 프로세스 정리
+├── tsconfig.json
+├── babel.config.js
+├── fixtures/                   # Playwright fixture (test, expect 재export 포함)
+├── helpers/                    # login, serverMap, exclusiveLock 등 재사용 helper
+├── modules/                    # environment·utils 등 보조 모듈
+├── specs/                      # 실제 테스트 (specs/**/*.test.ts)
+└── utils/                      # CI 보조 스크립트
+```
+
+테스트 작성 가이드는 [e2e/AGENTS.md](../e2e/AGENTS.md) 참조 (windows architecture, fixtures, anti-patterns 등).
+
+### 사전 요구사항
+
+1. **루트 의존성 설치 완료** ([§6.1](#61-의존성-설치))
+2. **빌드 산출물 (e2e 전용)**: E2E는 `NODE_ENV=test`로 빌드된 `e2e/dist/`를 Electron의 `args[0]`로 띄웁니다. 일반 `npm run build`(→ `dist/`)와 별개. `npm run e2e`가 자동으로 `npm run build-test`를 선행 호출합니다.
+3. **Mattermost 호환 서버 1대**: 테스트는 실제 서버에 로그인합니다. 다음 중 하나:
+   - 로컬 Docker로 Mattermost preview 실행 (포트 8065 기본)
+   - 사내 dev 서버 URL 사용
+   - GitHub Actions에서는 `OKRBEST_DESKTOP_E2E_USER_*` 시크릿과 매트릭스 URL 사용 ([REBRAND_STATUS §3.1](./REBRAND_STATUS.md#31-github-secrets--variables-등록-상태))
+4. **테스트 계정**: 로그인 helper(`loginToMattermost`)가 `MM_TEST_USER_NAME` / `MM_TEST_PASSWORD` 환경 변수를 요구
+
+### E2E 의존성 설치
+
+`npm run e2e`는 내부적으로 `npm --prefix e2e test`를 호출. `e2e/`는 별도 npm 패키지이므로 의존성도 별도 설치 필요:
+
+```bash
+# 루트에서
+npm --prefix e2e install
+```
+
+또는 `e2e/` 디렉토리에서 직접:
+```bash
+cd e2e
+npm install
+```
+
+설치되는 핵심 의존성:
+- `@playwright/test` (Playwright runner)
+- `chai` (assertion 보조)
+- `cross-env` (스크립트의 환경 변수 설정)
+- `fast-xml-parser`, `ps-node` (helper 도구)
+
+> Playwright는 Electron 앱을 직접 launch하므로 별도 브라우저(`npx playwright install chromium`)는 필요 없습니다.
+
+### 환경 변수
+
+| 변수 | 용도 | 기본값 |
+|---|---|---|
+| `MM_TEST_SERVER_URL` | E2E가 접속할 Mattermost 서버 | `http://localhost:8065/` |
+| `MM_TEST_USER_NAME` | 로그인 helper용 사용자명 | (필수, 미설정 시 throw) |
+| `MM_TEST_PASSWORD` | 로그인 helper용 비밀번호 | (필수, 미설정 시 throw) |
+| `E2E_WORKERS` | Playwright 워커 수 | CI=2, 로컬=`min(4, ⌊CPU/2⌋)` |
+| `RUN_POLICY_E2E` | `true`면 GPO/policy spec 실행 (Windows) | `false` |
+| `CI` | CI 모드 (재시도·리포터·워커 수 변경) | unset |
+| `CI_ENVIRONMENT_NAME` | Playwright tag 필터 | unset |
+| `DEBUG_E2E` | 디버그 로그 강화 | unset |
+
+로컬 .env 파일을 따로 두려면 (Playwright는 자체 dotenv 지원 없음) 셸에서 export 하거나 `cross-env`로 명령에 직접 주입:
+
+```bash
+# Linux/macOS/WSL
+export MM_TEST_SERVER_URL=http://localhost:8065/
+export MM_TEST_USER_NAME=alice
+export MM_TEST_PASSWORD=secret
+npm run e2e
+
+# Windows PowerShell
+$env:MM_TEST_SERVER_URL = "http://localhost:8065/"
+$env:MM_TEST_USER_NAME  = "alice"
+$env:MM_TEST_PASSWORD   = "secret"
+npm run e2e
+```
+
+### 로컬 Mattermost 서버 (Docker preview)
+
+가장 간단한 방법은 Mattermost preview 이미지:
+
+```bash
+docker run --name mattermost-preview -d --publish 8065:8065 mattermost/mattermost-preview
+# 첫 실행은 1~2분 소요. http://localhost:8065/ 접속해 admin 계정 생성
+# 이후 그 계정을 MM_TEST_USER_NAME / MM_TEST_PASSWORD로 사용
+```
+
+종료/정리:
+```bash
+docker stop mattermost-preview
+docker rm mattermost-preview
+```
+
+> Mattermost 서버 자체의 운영 옵션(SSO, plugins, calls 등)이 일부 spec에 영향을 줄 수 있어, 사내 표준 dev 서버가 있다면 그쪽을 권장.
+
+### 실행
+
+```bash
+# 전체 E2E (build-test → playwright test, 플랫폼별 spec 자동 필터)
+npm run e2e
+
+# 단일 spec만 (e2e 디렉토리에서)
+cd e2e
+npx playwright test specs/server_management/add_server_modal.test.ts
+
+# 특정 워커 수
+E2E_WORKERS=1 npm run e2e
+
+# Windows GPO/policy spec (Windows 호스트만)
+cd e2e
+npm run run:policy
+
+# headed 모드 / 디버그 (electron 앱은 headless가 의미 없으나 trace에 유용)
+npx playwright test --debug
+```
+
+플랫폼 태그 필터는 `playwright.config.ts`가 자동 처리:
+- macOS: `@all` 또는 `@darwin` 태그가 붙은 spec만
+- Windows: `@all` 또는 `@win32`
+- Linux: `@all` 또는 `@linux`
+
+### 리포트
+
+| 위치 | 용도 |
+|---|---|
+| `e2e/playwright-report/` | 로컬 HTML 리포트 (`npx playwright show-report`로 열람) |
+| `e2e/test-results/` | 실패 시 trace, screenshot, video |
+| `e2e/blob-report/` | CI에서 워커별 blob 리포트 (병합 후 HTML 생성) |
+| `e2e/test-results/e2e-junit.xml` | CI JUnit 리포트 |
+
+> trace는 실패 시에만 저장 (`trace: 'retain-on-failure'`). 디버깅 시 `npx playwright show-trace test-results/.../trace.zip`로 타임라인 확인.
+
+### WSL에서 E2E 가능한가
+
+가능. WSLg가 GUI를 표시하므로 Linux 빌드의 Electron이 정상 launch됩니다. 단:
+- macOS·Windows 전용 spec(`@darwin`, `@win32` 태그)은 자동으로 스킵
+- 일부 native API 의존 spec(트레이, Focus Assist, MAS 권한 등)은 해당 OS에서만 검증 가능
+
+### 트러블슈팅
+
+#### `loginToMattermost: MM_TEST_USER_NAME and MM_TEST_PASSWORD must be set`
+환경 변수 미설정. 위 "환경 변수" 절 참고해 export 또는 cross-env로 주입.
+
+#### `connect ECONNREFUSED 127.0.0.1:8065`
+로컬 Mattermost 서버가 떠 있지 않음. Docker preview 실행 또는 `MM_TEST_SERVER_URL`을 외부 dev 서버로 변경.
+
+#### `Error: timeout 60000ms exceeded` (테스트 타임아웃)
+- 시스템 부하: `E2E_WORKERS=1`로 워커 줄이기
+- electron 앱 시동이 느림: `npm run build-test`가 최신인지 확인 (clean dist 후 재빌드)
+- macOS "Resume" 다이얼로그가 떠서 막힘 → `global-setup.ts`가 차단하지만 안 되면 한 번 수동 dismiss
+
+#### Windows에서 `EBUSY` / `EPERM` 락 파일 에러
+[§8.2 EPERM rmdir](#82-windows-11-네이티브) 참고. `e2e/testUserData/`·`e2e/dist/` 폴더를 다른 프로세스가 잡고 있을 가능성. `npm --prefix e2e run clean` 후 재시도.
+
+---
+
 ## 6. 공통 프로젝트 설정
 
 ### 6.1 의존성 설치
@@ -565,17 +731,27 @@ npm run check                   # 위 4가지를 병렬 실행
 
 VSCode/Cursor 사용 시 권장 설정과 확장은 [VSCODE_SETUP.md](./VSCODE_SETUP.md) 참조.
 
-기본 권장:
-- **확장**: ESLint, TypeScript, GitLens
-- **`.vscode/settings.json`** 핵심:
-  ```json
-  {
-    "editor.formatOnSave": false,
-    "editor.codeActionsOnSave": { "source.fixAll.eslint": "explicit" },
-    "typescript.tsdk": "node_modules/typescript/lib",
-    "eslint.workingDirectories": ["."]
-  }
-  ```
+> **저장소에 .vscode/ 파일이 이미 커밋되어 있습니다** — 클론 후 별도 설정 없이 바로 사용 가능:
+> | 파일 | 용도 |
+> |---|---|
+> | [.vscode/settings.json](../.vscode/settings.json) | 워크스페이스 공통 설정 (ESLint·TypeScript·포맷) |
+> | [.vscode/launch.json](../.vscode/launch.json) | Electron main/renderer 디버그 launch 구성 |
+> | [.vscode/tasks.json](../.vscode/tasks.json) | build·watch·test 태스크 (F1 → Run Task) |
+> | [.vscode/extensions.json](../.vscode/extensions.json) | 권장 확장 (ESLint 등) — VS Code가 자동 제안 |
+
+추가 권장 확장:
+- **필수**: ESLint, TypeScript and JavaScript Language Features
+- **권장**: GitLens, Path Intellisense, EditorConfig
+
+기본 settings.json 핵심 설정 (저장소 값 기준):
+```json
+{
+  "editor.formatOnSave": false,
+  "editor.codeActionsOnSave": { "source.fixAll.eslint": "explicit" },
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "eslint.workingDirectories": ["."]
+}
+```
 
 ---
 
@@ -596,9 +772,9 @@ npm run watch                   # webpack watch + electron 자동 재시작 (권
 npm run check                   # lint + types + unit (병렬)
 npm run lint:js                 # ESLint
 npm run check-types             # TypeScript
-npm run test:unit               # Jest
-npm run test:unit-coverage      # 커버리지
-npm run e2e                     # E2E (Playwright)
+npm run test:unit               # Jest 유닛 테스트
+npm run test:unit-coverage      # 유닛 커버리지
+npm run e2e                     # E2E (Playwright) — 사전 설정 필요, [§E2E 테스트 환경](#e2e-테스트-환경) 참조
 ```
 
 ### 7.3 정리
@@ -865,8 +1041,39 @@ npm run test:unit -- --watch
 |---|---|
 | `npm run check` | lint + check-types + check-build-config + test:unit 병렬 |
 | `npm run fix:js` | ESLint --fix |
-| `npm run i18n-extract` | i18n 키 재추출 (`mmjstool` 필요) |
+| `npm run i18n-extract` | i18n 키 재추출 (`mmjstool` 필요, 자동 설치됨) |
 | `npm run prune` | 사용되지 않는 export 탐지 (`ts-prune`) |
+| `npm run build-test` | E2E용 빌드 (NODE_ENV=test → `e2e/dist/`) |
+
+### 9.5 개발자 모드 환경 변수
+
+[src/main/developerMode.ts](../src/main/developerMode.ts) 가 다음 조건 중 하나면 dev-only 기능을 활성화합니다:
+- `MM_DESKTOP_DEVELOPER_MODE=true`
+- `electron-is-dev` 가 true (dev 빌드)
+- `__IS_NIGHTLY_BUILD__` (nightly 빌드)
+
+프로덕션 빌드에서 일시적으로 dev 기능을 켜고 싶다면:
+```bash
+# Linux/macOS
+MM_DESKTOP_DEVELOPER_MODE=true npm run start
+
+# Windows PowerShell
+$env:MM_DESKTOP_DEVELOPER_MODE = "true"; npm run start
+```
+
+대표 dev-only 기능: dev 도구 자동 열기, 디버그 로그, dev 메뉴 항목, 진단(diagnostics) 강화 등.
+
+### 9.6 관련 루트 문서
+
+| 파일 | 용도 |
+|---|---|
+| [README.md](../README.md) | 프로젝트 개요·다운로드 |
+| [CONTRIBUTING.md](../CONTRIBUTING.md) | 기여 가이드라인 |
+| [TESTING.md](../TESTING.md) | 릴리스 전 수동 테스트 절차 |
+| [SECURITY.md](../SECURITY.md) | 보안 취약점 보고 |
+| [AGENTS.md](../AGENTS.md) | AI 에이전트 / Claude Code 가이드 (루트) |
+| [e2e/AGENTS.md](../e2e/AGENTS.md) | E2E 테스트 작성 가이드 |
+| [CHANGELOG.md](../CHANGELOG.md) | 변경 이력 |
 
 ---
 
@@ -1021,3 +1228,4 @@ CI/CD 전체 파이프라인은 [CI_CD.md](./CI_CD.md), 자동 업데이트 인�
 *Windows 네이티브 환경 + 리브랜드 반영: 2026-05-10*
 *Windows npm install 실패 사례(앱 실행 별칭·EPERM·EBADENGINE) 보강: 2026-05-11*
 *Python 버전 관리 (uv) 섹션 추가 및 Windows/WSL/macOS 통합 워크플로우 적용: 2026-05-11*
+*E2E 테스트 환경 섹션 신설(Playwright·Mattermost 서버·환경변수·리포트), .vscode/ 자산 안내, 개발자 모드/루트 문서 참조 추가: 2026-05-11*
