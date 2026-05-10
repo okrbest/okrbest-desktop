@@ -11,6 +11,7 @@
 3. [Windows 11 네이티브 환경 설정](#3-windows-11-네이티브-환경-설정)
 4. [Windows 11 + WSL Ubuntu 환경 설정](#4-windows-11--wsl-ubuntu-환경-설정)
 5. [macOS 환경 설정](#5-macos-환경-설정)
+   - [Python 버전 관리 (uv)](#python-버전-관리-uv) — 모든 플랫폼 공통
 6. [공통 프로젝트 설정](#6-공통-프로젝트-설정)
 7. [개발 명령어](#7-개발-명령어)
 8. [문제 해결](#8-문제-해결)
@@ -173,42 +174,48 @@ cd <okrbest-desktop 경로>
 
 이 프로젝트는 Windows 전용 네이티브 모듈(`windows-focus-assist`, `registry-js`, `cf-prefs`)을 **소스에서 직접 컴파일**합니다. 따라서 Python과 C++ 빌드 도구가 *모두* 필수입니다. 둘 중 하나라도 빠지면 `npm install` 끝부분에서 `node-gyp rebuild`가 실패합니다.
 
-#### 3.5.1 Python 설치
+#### 3.5.1 Python 설치 (uv 권장)
+
+**[uv](https://docs.astral.sh/uv/)** (Astral, Rust 기반)를 통한 설치를 권장합니다. uv가 받은 Python은 `%LOCALAPPDATA%\uv\python\...` 같은 자체 경로에 두므로 **Microsoft Store 앱 실행 별칭에 가로채이지 않고**, Windows·WSL·macOS에서 동일한 워크플로우로 관리됩니다. 자세한 사용법은 [§Python 버전 관리 (uv)](#python-버전-관리-uv) 참조.
 
 ```powershell
-winget install Python.Python.3.12
-# 또는 https://www.python.org 에서 인스톨러 다운로드 (설치 시 "Add Python to PATH" 체크 필수)
+# uv 설치
+winget install astral-sh.uv
+# 또는: powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# Python 설치 (시스템 PATH에 노출되도록 --default --preview)
+uv python install 3.12 --default --preview
 ```
 
 설치 후 **새 PowerShell 세션**에서 검증:
 ```powershell
-python --version    # 'Python 3.12.x' 같은 진짜 버전이 떠야 함
-where.exe python    # 실제 python.exe 경로 출력
+uv python find         # uv가 관리하는 Python 경로 출력
+python --version       # 'Python 3.12.x' 출력 (uv-managed)
+where.exe python       # %LOCALAPPDATA%\uv\python\... 경로 (Store stub 아님)
 ```
 
-> **⚠️ 앱 실행 별칭(App Execution Aliases) 비활성화 — 자주 놓치는 함정**
+> **⚠️ 앱 실행 별칭(App Execution Aliases) 비활성화 — uv 사용 여부와 무관하게 권장**
 >
-> Windows는 `python.exe` 호출을 Microsoft Store 스텁으로 가로채는 기본 설정이 켜져 있습니다. 진짜 Python을 설치했더라도 이 별칭이 우선 적용되면 node-gyp가 다음과 같은 오류를 냅니다:
+> Windows는 `python.exe` 호출을 Microsoft Store 스텁으로 가로채는 기본 설정이 켜져 있습니다. uv가 PATH 우선순위로 자체 Python을 노출시키긴 하지만, 셸 첫 검색 결과가 Store 스텁이 되는 경우가 있어 한 번 꺼두는 게 안전합니다.
 >
+> **해제**: 설정 → 앱 → 앱 실행 별칭에서 다음 두 항목 **OFF**:
+> - `python.exe` (App Installer)
+> - `python3.exe` (App Installer)
+>
+> 끄지 않으면 node-gyp가 다음 오류를 낼 수 있습니다:
 > ```
-> gyp ERR! find Python checking if "python" can be used
-> gyp ERR! find Python - executable path is ""
 > gyp ERR! find Python - "" could not be run
 > gyp ERR! find Python - version is ''
 > gyp ERR! find Python - THIS VERSION OF PYTHON IS NOT SUPPORTED
 > ```
->
-> **해제 방법**: **설정 → 앱 → 앱 실행 별칭** 화면에서 다음 두 항목 **OFF**:
-> - `python.exe` (App Installer)
-> - `python3.exe` (App Installer)
->
-> 끄지 않으면 `python --version`이 빈 응답을 주거나 Microsoft Store가 열립니다.
 
-node-gyp에 명시적으로 Python 경로 등록 (방어용 권장):
+node-gyp에 uv 관리 Python 경로 명시 등록 (방어용 권장):
 ```powershell
-npm config set python (Get-Command python).Source
+npm config set python (uv python find)
 npm config get python    # 등록된 경로 확인
 ```
+
+**대안 (uv를 쓰지 않을 경우)**: `winget install Python.Python.3.12` — 단 이 경우 앱 실행 별칭 비활성화가 사실상 필수.
 
 #### 3.5.2 Visual Studio Build Tools
 
@@ -304,6 +311,8 @@ wsl --status                   # WSLg 지원 확인 (Windows 11 Build 22000+)
 sudo apt update && sudo apt upgrade -y
 sudo apt install -y build-essential git curl wget
 ```
+
+> **Python**: WSL Ubuntu에는 `python3`가 기본 포함되어 node-gyp 빌드에 보통 충분합니다. 그러나 **Windows 클론과 동일한 Python 버전을 유지**하려면 [§Python 버전 관리 (uv)](#python-버전-관리-uv) 절차를 따르세요. uv는 Linux에서도 동일하게 동작합니다.
 
 ### 4.3 nvm + Node.js 설치
 
@@ -406,8 +415,11 @@ node -v
 
 ```bash
 brew install git                # 최신 git
-brew install python             # 네이티브 모듈 빌드용 (보통 기본 포함)
 ```
+
+> **Python**: macOS에는 시스템 `python3`가 포함되어 있으나, **Windows·WSL과 동일한 Python 버전 일관성**을 위해 uv 사용을 권장합니다. [§Python 버전 관리 (uv)](#python-버전-관리-uv) 참조. uv는 Homebrew 없이도 단독 설치됩니다.
+>
+> Homebrew Python을 선호한다면: `brew install python@3.12`
 
 배포용 코드 사이닝은 Apple Developer 계정이 필요. 설정 절차는 [APPLE_DEVELOPER_ACCOUNT_SETUP.md](./APPLE_DEVELOPER_ACCOUNT_SETUP.md) 참조.
 
@@ -430,6 +442,96 @@ node -p "process.arch"          # arm64 출력되어야 함
 
 # Rosetta로 실행 중이라면 터미널 정보에서
 # "Rosetta를 사용하여 열기" 체크 해제
+```
+
+---
+
+## Python 버전 관리 (uv)
+
+이 프로젝트는 **Python 소스 코드를 포함하지 않으나**, `npm install` 시 `node-gyp`가 네이티브 모듈(`windows-focus-assist`, `registry-js`, `cf-prefs`, `cf-prefs`)을 컴파일하기 위해 Python 3.6+를 필요로 합니다. 또한 i18n 도구 `mmjstool`이 일부 Python 의존을 가질 수 있습니다.
+
+### 왜 uv인가
+
+| 도구 | 비고 |
+|---|---|
+| **uv** (권장) | Astral, Rust 기반. 단일 바이너리로 Windows·WSL·macOS 일관. Python 설치+venv+의존성 통합. **Microsoft Store 앱 별칭 함정 자체 회피**. |
+| pyenv + pyenv-win | nvm과 같은 멘탈 모델. 성숙. OS별로 다른 구현이라 동기화 부담. venv는 별도. |
+| 시스템 Python | Linux/macOS 기본 제공. Windows는 별도 설치 필요. 버전 통일·격리 어려움. |
+| conda/miniconda | 데이터 사이언스 표준. 본 프로젝트엔 과함. |
+
+### uv 설치
+
+**Windows (PowerShell)**:
+```powershell
+winget install astral-sh.uv
+# 또는: powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+**WSL Ubuntu / macOS**:
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+# 셸 재시작 또는: source ~/.bashrc / ~/.zshrc
+```
+
+검증:
+```bash
+uv --version          # 0.5.x 이상
+```
+
+### Python 설치
+
+```bash
+uv python list                              # 사용 가능 버전 목록
+uv python install 3.12 --default --preview  # 시스템 PATH에 노출되도록
+```
+
+검증 (새 셸 세션):
+```bash
+uv python find        # uv가 관리하는 Python 경로
+python --version      # Python 3.12.x
+```
+
+### 프로젝트별 버전 고정 (`.python-version`)
+
+`.nvmrc`와 같은 개념. 프로젝트 루트에서:
+```bash
+cd okrbest-desktop
+uv python pin 3.12
+```
+
+`.python-version` 파일이 생성되며, 이 디렉토리에서는 셸 진입 시 uv가 해당 버전을 자동 활성화합니다.
+
+> 본 저장소에는 아직 `.python-version`이 커밋되지 않았습니다. 팀 표준으로 합의되면 추가 권장.
+
+### node-gyp 연결 (필수)
+
+uv 관리 Python을 npm/node-gyp가 사용하도록 명시:
+
+**Windows (PowerShell)**:
+```powershell
+npm config set python (uv python find)
+npm config get python
+```
+
+**WSL / macOS**:
+```bash
+npm config set python "$(uv python find)"
+npm config get python
+```
+
+이후 `npm install` → `node-gyp rebuild`가 위 경로의 Python을 사용. 시스템 Python 충돌·앱 별칭 가로채기·경로 불일치 모두 사라집니다.
+
+### (옵션) 가상환경·의존성 관리
+
+이 프로젝트엔 venv가 필요 없지만, 다른 Python 작업에 적용한다면 같은 uv 한 가지로 처리:
+
+```bash
+uv venv                     # .venv/ 생성
+uv pip install <pkg>        # venv에 설치
+uv add <pkg>                # pyproject.toml에 의존성 추가
+uv sync                     # lockfile 기반 동기화
+uv run python script.py     # venv 활성화 없이 실행
+uv run pytest
 ```
 
 ---
@@ -554,25 +656,23 @@ npm error gyp ERR! cwd ...\node_modules\windows-focus-assist
 
 **원인**: Windows의 **앱 실행 별칭(App Execution Aliases)** 가 `python.exe` 호출을 Microsoft Store 스텁으로 리디렉션해 빈 응답을 반환. 진짜 Python이 설치돼 있어도 이 별칭이 우선합니다. 디스크의 python.exe 파일은 발견하지만 실행 시 stdout이 비어 node-gyp가 `version is ''`로 인식.
 
-**해결 (순서대로)**:
+**해결 (권장: uv 도입으로 구조적 회피)**:
 
-1. **앱 실행 별칭 해제** — 설정 → 앱 → 앱 실행 별칭에서 `python.exe`, `python3.exe` 둘 다 OFF
-2. **진짜 Python 설치 확인** (없으면):
+1. **uv 설치 + uv 관리 Python 사용** — uv는 Python을 `%LOCALAPPDATA%\uv\python\...` 자체 경로에 두므로 Store stub과 충돌하지 않음. [§Python 버전 관리 (uv)](#python-버전-관리-uv) 참조:
    ```powershell
-   winget install Python.Python.3.12
+   winget install astral-sh.uv
+   uv python install 3.12 --default --preview
+   npm config set python (uv python find)
    ```
-3. **새 PowerShell 세션 열기** (별칭 변경은 새 세션부터 적용됨)
+2. **앱 실행 별칭 해제** (uv 사용 여부와 무관하게 권장) — 설정 → 앱 → 앱 실행 별칭에서 `python.exe`, `python3.exe` 둘 다 OFF
+3. **새 PowerShell 세션 열기** (별칭/PATH 변경은 새 세션부터 적용)
 4. **검증**:
    ```powershell
    python --version          # Python 3.12.x
-   where.exe python          # 진짜 경로 (예: C:\Users\<u>\AppData\Local\Programs\Python\Python312\python.exe)
-   ```
-5. **node-gyp에 명시 등록**:
-   ```powershell
-   npm config set python (Get-Command python).Source
+   where.exe python          # uv 경로 또는 진짜 python.exe 경로 (Store stub 아님)
    npm config get python
    ```
-6. **clean 재시도**:
+5. **clean 재시도**:
    ```powershell
    Remove-Item -Recurse -Force node_modules -ErrorAction SilentlyContinue
    Remove-Item -Force package-lock.json -ErrorAction SilentlyContinue
@@ -580,7 +680,9 @@ npm error gyp ERR! cwd ...\node_modules\windows-focus-assist
    npm install
    ```
 
-자세한 배경은 [§3.5.1 Python 설치](#351-python-설치) 참조.
+**대안 (uv 미사용)**: `winget install Python.Python.3.12` 후 2단계와 `npm config set python (Get-Command python).Source` 적용. 단 앱 실행 별칭 해제는 사실상 필수.
+
+자세한 배경은 [§3.5.1 Python 설치 (uv 권장)](#351-python-설치-uv-권장) 와 [§Python 버전 관리 (uv)](#python-버전-관리-uv) 참조.
 
 #### `npm install` 실패 — `EPERM: operation not permitted, rmdir node_modules\@sentry\...`
 
@@ -918,3 +1020,4 @@ CI/CD 전체 파이프라인은 [CI_CD.md](./CI_CD.md), 자동 업데이트 인�
 *패키징/배포 섹션 추가: 2026-02-14*
 *Windows 네이티브 환경 + 리브랜드 반영: 2026-05-10*
 *Windows npm install 실패 사례(앱 실행 별칭·EPERM·EBADENGINE) 보강: 2026-05-11*
+*Python 버전 관리 (uv) 섹션 추가 및 Windows/WSL/macOS 통합 워크플로우 적용: 2026-05-11*
