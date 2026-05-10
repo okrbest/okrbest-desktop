@@ -177,23 +177,40 @@ cd <okrbest-desktop 경로>
 
 #### 3.5.1 Python 설치 (uv 권장)
 
-**[uv](https://docs.astral.sh/uv/)** (Astral, Rust 기반)를 통한 설치를 권장합니다. uv가 받은 Python은 `%LOCALAPPDATA%\uv\python\...` 같은 자체 경로에 두므로 **Microsoft Store 앱 실행 별칭에 가로채이지 않고**, Windows·WSL·macOS에서 동일한 워크플로우로 관리됩니다. 자세한 사용법은 [§Python 버전 관리 (uv)](#python-버전-관리-uv) 참조.
+**[uv](https://docs.astral.sh/uv/)** (Astral, Rust 기반)를 통한 설치를 권장합니다. uv가 받은 Python은 `%APPDATA%\uv\python\cpython-3.12-...\` 자체 경로에 두므로 **Microsoft Store 앱 실행 별칭에 가로채이지 않고**, Windows·WSL·macOS에서 동일한 워크플로우로 관리됩니다. 자세한 사용법은 [§Python 버전 관리 (uv)](#python-버전-관리-uv) 참조.
 
 ```powershell
-# uv 설치
+# 1. uv 설치
 winget install astral-sh.uv
 # 또는: powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 
-# Python 설치 (시스템 PATH에 노출되도록 --default --preview)
+# 2. Python 설치 — `python` 명령을 PATH에 노출하려면 --default --preview 필요
 uv python install 3.12 --default --preview
+
+# 3. shim 디렉토리(%USERPROFILE%\.local\bin)를 PATH에 영구 등록
+uv python update-shell
 ```
 
-설치 후 **새 PowerShell 세션**에서 검증:
+> **⚠️ 이미 Python이 설치된 경우 `--default --preview`만으로는 shim이 안 만들어집니다**
+>
+> uv는 "Python is already installed"라고 출력하며 install 단계를 건너뛰는데, 이때 `--default` 동작(shim 생성)도 함께 스킵됩니다. 이 상황이면 `--reinstall`을 추가:
+> ```powershell
+> uv python install 3.12 --default --preview --reinstall
+> uv python update-shell
+> ```
+
+설치 후 **반드시 PowerShell 세션을 닫고 새로 열어** 검증 (PATH는 새 세션부터 적용):
 ```powershell
-uv python find         # uv가 관리하는 Python 경로 출력
-python --version       # 'Python 3.12.x' 출력 (uv-managed)
-where.exe python       # %LOCALAPPDATA%\uv\python\... 경로 (Store stub 아님)
+uv python find         # 실제 cpython 바이너리 경로 (예: %APPDATA%\uv\python\cpython-3.12.13-...\python.exe)
+python --version       # 'Python 3.12.x' 출력
+where.exe python       # %USERPROFILE%\.local\bin\python.exe (uv shim, uv 0.11+)
 ```
+
+> **shim 위치는 uv 버전에 따라 다름**:
+> - uv 0.11+ : `%USERPROFILE%\.local\bin\` (= `C:\Users\<user>\.local\bin\`)
+> - uv 0.5 ~ 0.10 : `%APPDATA%\uv\bin\`
+>
+> `uv python update-shell`이 알아서 올바른 위치를 PATH에 등록합니다.
 
 > **⚠️ 앱 실행 별칭(App Execution Aliases) 비활성화 — uv 사용 여부와 무관하게 권장**
 >
@@ -215,6 +232,8 @@ node-gyp에 uv 관리 Python 경로 명시 등록 (방어용 권장):
 npm config set python (uv python find)
 npm config get python    # 등록된 경로 확인
 ```
+
+> **PATH 등록을 건너뛸 수도 있는 경우**: 이 프로젝트의 node-gyp 빌드만 목적이라면 `python` 명령이 PATH에 있을 필요가 없습니다. 위 `npm config set python (uv python find)` 한 줄만으로 node-gyp가 uv 관리 Python을 직접 사용 — `uv python update-shell`과 새 셸 열기 단계를 생략 가능. 다른 Python 작업을 위해서는 PATH 등록 필요.
 
 **대안 (uv를 쓰지 않을 경우)**: `winget install Python.Python.3.12` — 단 이 경우 앱 실행 별칭 비활성화가 사실상 필수.
 
@@ -483,14 +502,29 @@ uv --version          # 0.5.x 이상
 
 ```bash
 uv python list                              # 사용 가능 버전 목록
-uv python install 3.12 --default --preview  # 시스템 PATH에 노출되도록
+uv python install 3.12 --default --preview  # Python 다운로드 + shim 생성
+uv python update-shell                      # shim 디렉토리를 PATH에 영구 등록
 ```
 
-검증 (새 셸 세션):
+> **이미 설치된 Python에 재적용**: `uv python install`은 "already installed"면 즉시 종료하고 `--default` 동작도 스킵합니다. 이 경우 `--reinstall` 추가:
+> ```bash
+> uv python install 3.12 --default --preview --reinstall
+> uv python update-shell
+> ```
+
+검증 (**새 셸 세션** 필요):
 ```bash
-uv python find        # uv가 관리하는 Python 경로
+uv python find        # 실제 cpython 바이너리 경로
 python --version      # Python 3.12.x
+where.exe python      # Windows: %USERPROFILE%\.local\bin\python.exe (uv 0.11+ shim)
+which python          # Linux/macOS: ~/.local/bin/python
 ```
+
+shim 디렉토리는 uv 버전에 따라:
+- uv 0.11+ : `~/.local/bin/` (Windows: `%USERPROFILE%\.local\bin\`)
+- uv 0.5 ~ 0.10 : `%APPDATA%\uv\bin\` (Windows) / `~/.local/share/uv/bin/` (Unix)
+
+`uv python update-shell`이 알아서 올바른 위치를 PATH에 등록합니다.
 
 ### 프로젝트별 버전 고정 (`.python-version`)
 
@@ -834,19 +868,26 @@ npm error gyp ERR! cwd ...\node_modules\windows-focus-assist
 
 **해결 (권장: uv 도입으로 구조적 회피)**:
 
-1. **uv 설치 + uv 관리 Python 사용** — uv는 Python을 `%LOCALAPPDATA%\uv\python\...` 자체 경로에 두므로 Store stub과 충돌하지 않음. [§Python 버전 관리 (uv)](#python-버전-관리-uv) 참조:
+1. **uv 설치 + uv 관리 Python 사용** — uv는 Python을 `%APPDATA%\uv\python\cpython-3.12-...\` 자체 경로에 두므로 Store stub과 충돌하지 않음. [§Python 버전 관리 (uv)](#python-버전-관리-uv) 참조:
    ```powershell
    winget install astral-sh.uv
    uv python install 3.12 --default --preview
+   uv python update-shell                # PATH 영구 등록 (uv 0.11+: %USERPROFILE%\.local\bin)
    npm config set python (uv python find)
    ```
+   > 이미 Python이 설치된 상태면 `uv python install`이 즉시 종료하며 `--default` 동작도 스킵됩니다. `--reinstall`로 강제:
+   > ```powershell
+   > uv python install 3.12 --default --preview --reinstall
+   > uv python update-shell
+   > ```
+   > **node-gyp 빌드만 목적이라면 PATH 등록(`update-shell`·새 셸) 단계를 생략 가능** — `npm config set python (uv python find)` 한 줄이면 node-gyp는 직접 그 경로를 사용.
 2. **앱 실행 별칭 해제** (uv 사용 여부와 무관하게 권장) — 설정 → 앱 → 앱 실행 별칭에서 `python.exe`, `python3.exe` 둘 다 OFF
 3. **새 PowerShell 세션 열기** (별칭/PATH 변경은 새 세션부터 적용)
 4. **검증**:
    ```powershell
-   python --version          # Python 3.12.x
-   where.exe python          # uv 경로 또는 진짜 python.exe 경로 (Store stub 아님)
-   npm config get python
+   python --version          # Python 3.12.x (PATH 등록 시)
+   where.exe python          # %USERPROFILE%\.local\bin\python.exe (uv 0.11+ shim)
+   npm config get python     # uv python find 결과 — node-gyp가 직접 사용
    ```
 5. **clean 재시도**:
    ```powershell
@@ -857,6 +898,12 @@ npm error gyp ERR! cwd ...\node_modules\windows-focus-assist
    ```
 
 **대안 (uv 미사용)**: `winget install Python.Python.3.12` 후 2단계와 `npm config set python (Get-Command python).Source` 적용. 단 앱 실행 별칭 해제는 사실상 필수.
+
+**`uv python install` 후 `python` 명령이 PATH에 안 잡힐 때**:
+- 원인: `--default --preview`가 적용 안 됐거나(이미 설치된 Python), `uv python update-shell`을 실행 안 했거나, 새 PowerShell 세션을 안 열었음
+- shim 위치 확인: uv 0.11+은 `%USERPROFILE%\.local\bin\`, uv 0.5~0.10은 `%APPDATA%\uv\bin\`
+- 즉시 해소: `uv python install 3.12 --default --preview --reinstall && uv python update-shell` 후 새 셸
+- 또는 node-gyp 용도만이면 PATH 무시하고 `npm config set python (uv python find)`로 충분
 
 자세한 배경은 [§3.5.1 Python 설치 (uv 권장)](#351-python-설치-uv-권장) 와 [§Python 버전 관리 (uv)](#python-버전-관리-uv) 참조.
 
@@ -1229,3 +1276,4 @@ CI/CD 전체 파이프라인은 [CI_CD.md](./CI_CD.md), 자동 업데이트 인�
 *Windows npm install 실패 사례(앱 실행 별칭·EPERM·EBADENGINE) 보강: 2026-05-11*
 *Python 버전 관리 (uv) 섹션 추가 및 Windows/WSL/macOS 통합 워크플로우 적용: 2026-05-11*
 *E2E 테스트 환경 섹션 신설(Playwright·Mattermost 서버·환경변수·리포트), .vscode/ 자산 안내, 개발자 모드/루트 문서 참조 추가: 2026-05-11*
+*uv 0.11+ shim 위치(%USERPROFILE%\.local\bin\) 정정 및 uv python update-shell·--reinstall 가이드 추가: 2026-05-11*
