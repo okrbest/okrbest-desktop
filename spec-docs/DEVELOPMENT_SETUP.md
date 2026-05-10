@@ -65,6 +65,8 @@
 
 WSL이 아닌 **Windows 호스트에서 직접 개발/빌드**할 때의 절차. Windows 전용 기능(Focus Assist, AppUserModelId, MSI/NSIS 등)을 검증하려면 이 환경이 필요합니다.
 
+> **WSL과의 핵심 차이**: WSL Ubuntu에서는 `windows-focus-assist`·`registry-js`·`cf-prefs` 같은 Windows 전용 네이티브 모듈이 stub/no-op로 우회되어 컴파일이 사실상 생략됩니다. 반면 Windows 네이티브에서는 이 모듈들이 **실제 Win32 API 코드를 직접 컴파일**해야 하므로 Python + Visual Studio C++ 빌드 도구가 *모두* 필요합니다. 이 차이 때문에 같은 Node 20.15.0이라도 WSL에서는 통과한 `npm install`이 Windows에서 실패하는 경우가 흔합니다 — 거의 모두 [§3.5](#35-네이티브-모듈-빌드-도구-python--visual-studio-build-tools) 와 [§8.2](#82-windows-11-네이티브) 의 문제로 귀결됩니다.
+
 ### 3.1 기존 Node.js 제거
 
 기존에 Node를 직접 설치했다면 nvm-windows와 충돌합니다. 먼저 깨끗이 정리:
@@ -167,15 +169,61 @@ cd <okrbest-desktop 경로>
 # [nvm] 22.x.x -> 20.15.0 (.nvmrc) 출력
 ```
 
-### 3.5 Visual Studio Build Tools 설치
+### 3.5 네이티브 모듈 빌드 도구 (Python + Visual Studio Build Tools)
 
-이 프로젝트는 Windows 전용 네이티브 모듈(`windows-focus-assist`, `registry-js`, `cf-prefs`)을 빌드하므로 C++ 빌드 도구가 필수:
+이 프로젝트는 Windows 전용 네이티브 모듈(`windows-focus-assist`, `registry-js`, `cf-prefs`)을 **소스에서 직접 컴파일**합니다. 따라서 Python과 C++ 빌드 도구가 *모두* 필수입니다. 둘 중 하나라도 빠지면 `npm install` 끝부분에서 `node-gyp rebuild`가 실패합니다.
+
+#### 3.5.1 Python 설치
+
+```powershell
+winget install Python.Python.3.12
+# 또는 https://www.python.org 에서 인스톨러 다운로드 (설치 시 "Add Python to PATH" 체크 필수)
+```
+
+설치 후 **새 PowerShell 세션**에서 검증:
+```powershell
+python --version    # 'Python 3.12.x' 같은 진짜 버전이 떠야 함
+where.exe python    # 실제 python.exe 경로 출력
+```
+
+> **⚠️ 앱 실행 별칭(App Execution Aliases) 비활성화 — 자주 놓치는 함정**
+>
+> Windows는 `python.exe` 호출을 Microsoft Store 스텁으로 가로채는 기본 설정이 켜져 있습니다. 진짜 Python을 설치했더라도 이 별칭이 우선 적용되면 node-gyp가 다음과 같은 오류를 냅니다:
+>
+> ```
+> gyp ERR! find Python checking if "python" can be used
+> gyp ERR! find Python - executable path is ""
+> gyp ERR! find Python - "" could not be run
+> gyp ERR! find Python - version is ''
+> gyp ERR! find Python - THIS VERSION OF PYTHON IS NOT SUPPORTED
+> ```
+>
+> **해제 방법**: **설정 → 앱 → 앱 실행 별칭** 화면에서 다음 두 항목 **OFF**:
+> - `python.exe` (App Installer)
+> - `python3.exe` (App Installer)
+>
+> 끄지 않으면 `python --version`이 빈 응답을 주거나 Microsoft Store가 열립니다.
+
+node-gyp에 명시적으로 Python 경로 등록 (방어용 권장):
+```powershell
+npm config set python (Get-Command python).Source
+npm config get python    # 등록된 경로 확인
+```
+
+#### 3.5.2 Visual Studio Build Tools
 
 ```powershell
 winget install Microsoft.VisualStudio.2022.BuildTools
 ```
 
 설치 마법사에서 **"C++을 사용한 데스크톱 개발"** 워크로드를 선택. (이미 Visual Studio 2022가 설치돼 있으면 같은 워크로드만 추가하면 됨.)
+
+설치 후 검증:
+```powershell
+# Visual Studio Installer 또는 다음으로 MSBuild 인식 여부 확인
+where.exe MSBuild.exe 2>$null
+# 출력이 없으면 "Developer PowerShell for VS 2022"를 시작 메뉴에서 실행하거나 시스템 PATH 추가
+```
 
 ### 3.6 Git for Windows
 
@@ -187,10 +235,13 @@ git --version
 ### 3.7 프로젝트 클론 및 설정
 
 > WSL 파일시스템(`\\wsl$\Ubuntu\...`)을 Windows에서 마운트해 쓰면 I/O가 매우 느리고 fsevents·심링크 이슈가 납니다. **반드시 Windows의 NTFS에 별도 클론**하세요.
+>
+> 또한 **OneDrive 동기화 폴더(예: `Documents\`) 안에 두지 말 것**. OneDrive가 `node_modules` 파일을 잠가서 `npm install` 도중 `EPERM rmdir` 에러를 유발합니다 ([§8.2](#82-windows-11-네이티브) 참조). `D:\projects\` 또는 `C:\dev\` 같이 동기화 대상이 아닌 경로를 사용하세요.
 
 ```powershell
-# 임의의 작업 폴더에서
-cd $env:USERPROFILE\projects
+# 동기화 대상이 아닌 경로 권장
+mkdir D:\projects -ErrorAction SilentlyContinue
+cd D:\projects
 git clone <repository-url> okrbest-desktop
 cd okrbest-desktop
 
@@ -200,6 +251,8 @@ nvm use 20.15.0
 # 의존성 설치 (네이티브 모듈을 Windows용으로 새로 컴파일)
 npm install
 ```
+
+`npm install`이 끝부분에 `node-gyp rebuild`를 호출하며 `windows-focus-assist`·`registry-js`·`cf-prefs`를 컴파일합니다. 이 과정에서 흔히 마주치는 오류는 [§8.2 Windows 11 네이티브](#82-windows-11-네이티브) 의 항목들로 정리되어 있습니다.
 
 ### 3.8 개발 실행
 
@@ -485,27 +538,124 @@ rm -rf node_modules && npm install
 
 ### 8.2 Windows 11 네이티브
 
+#### `npm install` 실패 — `gyp ERR! find Python` (Python을 찾을 수 없음)
+
+증상 (로그 발췌, 16개 후보 경로를 순회하며 모두 같은 패턴):
+```
+npm error gyp ERR! find Python checking if "python" can be used
+npm error gyp ERR! find Python - executable path is ""
+npm error gyp ERR! find Python - "" could not be run
+...
+npm error gyp ERR! find Python - version is ''
+npm error gyp ERR! find Python - THIS VERSION OF PYTHON IS NOT SUPPORTED
+npm error gyp ERR! stack Error: Could not find any Python installation to use
+npm error gyp ERR! cwd ...\node_modules\windows-focus-assist
+```
+
+**원인**: Windows의 **앱 실행 별칭(App Execution Aliases)** 가 `python.exe` 호출을 Microsoft Store 스텁으로 리디렉션해 빈 응답을 반환. 진짜 Python이 설치돼 있어도 이 별칭이 우선합니다. 디스크의 python.exe 파일은 발견하지만 실행 시 stdout이 비어 node-gyp가 `version is ''`로 인식.
+
+**해결 (순서대로)**:
+
+1. **앱 실행 별칭 해제** — 설정 → 앱 → 앱 실행 별칭에서 `python.exe`, `python3.exe` 둘 다 OFF
+2. **진짜 Python 설치 확인** (없으면):
+   ```powershell
+   winget install Python.Python.3.12
+   ```
+3. **새 PowerShell 세션 열기** (별칭 변경은 새 세션부터 적용됨)
+4. **검증**:
+   ```powershell
+   python --version          # Python 3.12.x
+   where.exe python          # 진짜 경로 (예: C:\Users\<u>\AppData\Local\Programs\Python\Python312\python.exe)
+   ```
+5. **node-gyp에 명시 등록**:
+   ```powershell
+   npm config set python (Get-Command python).Source
+   npm config get python
+   ```
+6. **clean 재시도**:
+   ```powershell
+   Remove-Item -Recurse -Force node_modules -ErrorAction SilentlyContinue
+   Remove-Item -Force package-lock.json -ErrorAction SilentlyContinue
+   npm cache clean --force
+   npm install
+   ```
+
+자세한 배경은 [§3.5.1 Python 설치](#351-python-설치) 참조.
+
+#### `npm install` 실패 — `EPERM: operation not permitted, rmdir node_modules\@sentry\...`
+
+증상:
+```
+npm warn cleanup Failed to remove some directories [
+npm warn cleanup   [Error: EPERM: operation not permitted, rmdir
+npm warn cleanup     'D:\...\node_modules\@sentry\browser\build\npm\cjs']
+```
+
+**원인**: `node_modules` 하위 파일을 다른 프로세스가 잠그고 있어 npm이 정리를 못함. 흔한 가해자:
+- **OneDrive 동기화** (프로젝트가 `Documents\` 또는 OneDrive 폴더 안에 있을 때 가장 흔함)
+- VS Code · Cursor · JetBrains IDE의 인덱서 / 언어 서버
+- 백신 실시간 스캔 (특히 Windows Defender, McAfee, 카스퍼스키)
+- 다른 PowerShell 세션의 `npm run watch` / electron 프로세스
+
+**해결**:
+
+1. **프로젝트를 OneDrive 동기화 폴더 *밖*으로 이동** (가장 근본적). 권장 경로: `D:\projects\` 또는 `C:\dev\`
+2. VS Code · IDE에서 해당 디렉토리 닫기
+3. 다른 셸의 watch / electron 프로세스 종료
+4. 백신 실시간 보호 일시 중지 후 재시도
+5. 그래도 안 풀리면 PowerShell 관리자 권한:
+   ```powershell
+   Remove-Item -Recurse -Force node_modules -ErrorAction Continue
+   npm install
+   ```
+6. 정 안 되면 재부팅 후 1~5를 다시
+
+#### `npm install` 경고 — `EBADENGINE Unsupported engine`
+
+증상:
+```
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@electron/rebuild@4.0.3',
+npm warn EBADENGINE   required: { node: '>=22.12.0' },
+npm warn EBADENGINE   current: { node: 'v20.15.0', npm: '10.7.0' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'node-abi@4.26.0',
+npm warn EBADENGINE   required: { node: '>=22.12.0' },
+npm warn EBADENGINE   current: { node: 'v20.15.0' }
+npm warn EBADENGINE }
+```
+
+**무시해도 됩니다.** 프로젝트 [.nvmrc](../.nvmrc) 는 `v20.15.0`이며, 위 두 패키지는 `engines` 필드가 보수적으로 잡혀 있을 뿐 Node 20에서 정상 동작합니다 (실제 빌드/install 결과에 영향 없음). Node 22로 올리는 것은 [.nvmrc](../.nvmrc) 정책 변경을 동반하므로 별도 결정 사항.
+
+#### `npm install` 경고 — `mattermost-utilities` integrity check skip
+
+증상: `npm warn skipping integrity check for git dependency ssh://git@github.com/mattermost/mattermost-utilities.git`
+
+**무시해도 됩니다.** [package.json](../package.json) 의 `mmjstool` 항목이 git url로 지정된 i18n 도구 의존성이며, npm은 git deps에 대해 integrity 검증을 건너뜁니다 (lockfile에 hash가 있어도 마찬가지). 보안 영향 없음.
+
 #### `nvm use` 시 `access denied`
 
 PowerShell이 관리자 권한이 아닙니다. PowerShell 단축아이콘 → 속성 → 고급 → "관리자 권한으로 실행" 체크.
 
 #### `node-gyp` 빌드 실패 (`MSBuild.exe not found` 등)
 
-```powershell
-# Build Tools 재설치 시 "C++ 데스크톱 개발" 워크로드 선택 확인
-winget install Microsoft.VisualStudio.2022.BuildTools
+Python은 잡히는데 C++ 컴파일러를 못 찾는 경우. [§3.5.2 Visual Studio Build Tools](#352-visual-studio-build-tools) 가 설치 마법사에서 **"C++을 사용한 데스크톱 개발"** 워크로드와 함께 설치됐는지 확인.
 
-# Python 경로 등록
-npm config set python (Get-Command python).Source
+```powershell
+winget install Microsoft.VisualStudio.2022.BuildTools
+where.exe MSBuild.exe 2>$null    # 출력이 있어야 정상
 ```
+
+PATH에 등록 안 됐다면 시작 메뉴에서 **"Developer PowerShell for VS 2022"** 를 열어 거기에서 `npm install` 시도.
 
 #### WSL 클론과 같은 폴더의 `node_modules`를 사용하다 ABI 에러
 
-OS별로 별도 클론·`node_modules`를 두세요 (3.7, 4.7 참조).
+OS별로 별도 클론·`node_modules`를 두세요 ([§3.7](#37-프로젝트-클론-및-설정), [§4.7](#47-windows-측-클론과-분리) 참조).
 
 #### `.nvmrc` 자동 전환이 동작 안 함
 
-nvm-windows는 기본적으로 `.nvmrc`를 인식하지 않습니다. [3.4](#34-nvmrc-자동-적용-선택)의 PowerShell 후크를 추가해야 합니다.
+nvm-windows는 기본적으로 `.nvmrc`를 인식하지 않습니다. [§3.4](#34-nvmrc-자동-적용-선택) 의 PowerShell 후크를 추가해야 합니다.
 
 ### 8.3 WSL Ubuntu
 
@@ -767,3 +917,4 @@ CI/CD 전체 파이프라인은 [CI_CD.md](./CI_CD.md), 자동 업데이트 인�
 *문서 작성일: 2026-01-04*
 *패키징/배포 섹션 추가: 2026-02-14*
 *Windows 네이티브 환경 + 리브랜드 반영: 2026-05-10*
+*Windows npm install 실패 사례(앱 실행 별칭·EPERM·EBADENGINE) 보강: 2026-05-11*
