@@ -37,7 +37,7 @@
 
 | 플랫폼 | 요구사항 |
 |--------|----------|
-| **Windows 11 네이티브** | PowerShell 7+ (또는 5.1), nvm-windows, Visual Studio Build Tools 2022 (C++ 워크로드) |
+| **Windows 11 네이티브** | PowerShell 7+ (또는 5.1), nvm-windows, **Visual Studio 2022 (C++ 워크로드)** — VS Community/Professional/Enterprise 또는 Build Tools 중 택일 ([§3.5.2](#352-c-빌드-도구-visual-studio-build-tools-또는-vs-community-워크로드)) |
 | **Windows 11 + WSL2** | Ubuntu 22.04+, WSLg(기본 포함), 빌드 도구 |
 | **macOS** | macOS 11(Big Sur) 이상, Xcode Command Line Tools |
 
@@ -237,19 +237,57 @@ npm config get python    # 등록된 경로 확인
 
 **대안 (uv를 쓰지 않을 경우)**: `winget install Python.Python.3.12` — 단 이 경우 앱 실행 별칭 비활성화가 사실상 필수.
 
-#### 3.5.2 Visual Studio Build Tools
+#### 3.5.2 C++ 빌드 도구 (Visual Studio Build Tools 또는 VS Community 워크로드)
+
+node-gyp는 **MSBuild + MSVC C++ 컴파일러 + Windows SDK** 가 필요합니다. 이 셋은 다음 두 인스톨러 중 *어느 쪽이든* "C++을 사용한 데스크톱 개발" 워크로드를 통해 동일하게 제공됩니다 — **둘 다 설치할 필요는 없습니다.**
+
+| 인스톨러 | 차이점 |
+|---|---|
+| **Visual Studio Community/Professional/Enterprise** | IDE(devenv.exe)·디버거 UI·솔루션 탐색기 포함. 디스크 ~10–20GB |
+| **Visual Studio Build Tools** | IDE 없이 빌드 툴체인만. 디스크 ~5–8GB |
+
+node-gyp는 [vswhere](https://github.com/microsoft/vswhere) 로 양쪽 모두 자동 탐지하므로 사용자 입장에서 차이 없음. **이미 VS Community/Professional/Enterprise 가 설치되어 있다면 Build Tools 별도 설치 불필요** — VS Installer → Modify 로 워크로드만 추가하면 됨.
+
+##### 시나리오 A — 이미 Visual Studio 2022 (Community 등) 가 설치되어 있는 경우
+
+1. **시작 메뉴 → "Visual Studio Installer" 실행**
+2. 해당 VS 인스턴스 → **수정(Modify)**
+3. 워크로드 탭에서 **"C++을 사용한 데스크톱 개발"** 체크 → **설치**
+4. 검증 (아래 "검증" 절 참조)
+
+##### 시나리오 B — VS가 전혀 설치되어 있지 않은 경우
 
 ```powershell
 winget install Microsoft.VisualStudio.2022.BuildTools
 ```
 
-설치 마법사에서 **"C++을 사용한 데스크톱 개발"** 워크로드를 선택. (이미 Visual Studio 2022가 설치돼 있으면 같은 워크로드만 추가하면 됨.)
+설치 마법사에서 **"C++을 사용한 데스크톱 개발"** 워크로드를 선택해 진행.
 
-설치 후 검증:
+##### 시나리오 C — VS Community + Build Tools 둘 다 설치된 경우
+
+비권장. 같은 툴체인이 두 벌 생겨 디스크 5–8GB 낭비, 패치 관리 부담만 증가. node-gyp는 어느 쪽이든 잡지만 어느 인스턴스를 잡았는지 추적이 어려워짐. 정리 권장:
+- VS Community에 C++ 워크로드가 있다면 → Build Tools 제거
+- 없다면 → VS Community에 워크로드 추가 후 Build Tools 제거
+
+##### 검증
+
 ```powershell
-# Visual Studio Installer 또는 다음으로 MSBuild 인식 여부 확인
+$vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+
+# 설치된 VS 인스턴스 경로 (모든 종류)
+& $vswhere -latest -property installationPath
+
+# C++ 데스크톱 워크로드 보유 여부 — 경로가 출력되면 OK
+& $vswhere -latest -requires Microsoft.VisualStudio.Workload.NativeDesktop -property installationPath
+```
+
+두 번째 명령이 경로를 반환하면 node-gyp 빌드 환경 준비 완료. 출력이 없으면 워크로드 미설치 → 시나리오 A·B에 따라 추가.
+
+MSBuild 직접 확인:
+```powershell
 where.exe MSBuild.exe 2>$null
 # 출력이 없으면 "Developer PowerShell for VS 2022"를 시작 메뉴에서 실행하거나 시스템 PATH 추가
+# (npm install 시 node-gyp는 vswhere를 통해 자동 탐지하므로 PATH 미등록도 보통 동작)
 ```
 
 ### 3.6 Git for Windows
@@ -965,14 +1003,24 @@ PowerShell이 관리자 권한이 아닙니다. PowerShell 단축아이콘 → �
 
 #### `node-gyp` 빌드 실패 (`MSBuild.exe not found` 등)
 
-Python은 잡히는데 C++ 컴파일러를 못 찾는 경우. [§3.5.2 Visual Studio Build Tools](#352-visual-studio-build-tools) 가 설치 마법사에서 **"C++을 사용한 데스크톱 개발"** 워크로드와 함께 설치됐는지 확인.
+Python은 잡히는데 C++ 컴파일러를 못 찾는 경우. **VS Community/Professional/Enterprise 또는 Build Tools 중 어느 것이든** "C++을 사용한 데스크톱 개발" 워크로드가 설치되어 있어야 합니다. [§3.5.2](#352-c-빌드-도구-visual-studio-build-tools-또는-vs-community-워크로드) 참조.
 
+먼저 워크로드 보유 여부 확인:
 ```powershell
-winget install Microsoft.VisualStudio.2022.BuildTools
-where.exe MSBuild.exe 2>$null    # 출력이 있어야 정상
+$vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+& $vswhere -latest -requires Microsoft.VisualStudio.Workload.NativeDesktop -property installationPath
+# 경로가 출력되면 OK. 아무 것도 안 나오면 워크로드 미설치 또는 VS 자체 미설치
 ```
 
-PATH에 등록 안 됐다면 시작 메뉴에서 **"Developer PowerShell for VS 2022"** 를 열어 거기에서 `npm install` 시도.
+미설치 시 두 가지 시나리오:
+- **VS Community 등이 이미 설치된 경우**: VS Installer → Modify → "C++을 사용한 데스크톱 개발" 체크 (Build Tools 별도 설치 비권장 — 같은 툴체인 중복)
+- **VS가 전혀 없는 경우**: `winget install Microsoft.VisualStudio.2022.BuildTools` (설치 마법사에서 워크로드 선택)
+
+워크로드는 있는데 PATH에 MSBuild가 안 잡히는 경우:
+```powershell
+where.exe MSBuild.exe 2>$null    # 보통 출력이 없어도 node-gyp는 vswhere로 자동 탐지
+```
+PATH 문제가 의심되면 시작 메뉴에서 **"Developer PowerShell for VS 2022"** 를 열어 거기에서 `npm install` 시도.
 
 #### WSL 클론과 같은 폴더의 `node_modules`를 사용하다 ABI 에러
 
@@ -1132,9 +1180,12 @@ $env:MM_DESKTOP_DEVELOPER_MODE = "true"; npm run start
 # 1. 기존 Node 제거 후 nvm-windows 설치
 winget install CoreyButler.NVMforWindows
 
-# 2. 빌드 도구
+# 2. C++ 빌드 도구 — 둘 중 택일
+#   (a) VS Community 등이 이미 있으면 → VS Installer → Modify → "C++을 사용한 데스크톱 개발" 체크
+#   (b) VS가 없으면 ↓
 winget install Microsoft.VisualStudio.2022.BuildTools
 #   설치 마법사에서 "C++을 사용한 데스크톱 개발" 워크로드 선택
+#   확인: vswhere -latest -requires Microsoft.VisualStudio.Workload.NativeDesktop -property installationPath
 
 # 3. Node 설치 (관리자 권한 PowerShell)
 nvm install 20.15.0
@@ -1277,3 +1328,4 @@ CI/CD 전체 파이프라인은 [CI_CD.md](./CI_CD.md), 자동 업데이트 인�
 *Python 버전 관리 (uv) 섹션 추가 및 Windows/WSL/macOS 통합 워크플로우 적용: 2026-05-11*
 *E2E 테스트 환경 섹션 신설(Playwright·Mattermost 서버·환경변수·리포트), .vscode/ 자산 안내, 개발자 모드/루트 문서 참조 추가: 2026-05-11*
 *uv 0.11+ shim 위치(%USERPROFILE%\.local\bin\) 정정 및 uv python update-shell·--reinstall 가이드 추가: 2026-05-11*
+*§3.5.2 C++ 빌드 도구 보강 — VS Community vs Build Tools 중복 안내, vswhere 검증, 시나리오별 설치 절차 분리: 2026-05-11*
