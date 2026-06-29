@@ -282,3 +282,57 @@ Open Settings (`Ctrl/Cmd+,`) → switch logging to **Debug** → reproduce → *
 3. **Restart** app (and computer if needed).
 4. **Reset data** — **View → Clear All Data**, or delete the config directory.
 5. **Collect debug logs and heap snapshots**.
+
+## Spec-Kit + Superpowers Integrated Workflow
+
+This is a **spec-kit project**. Feature work runs a fixed pipeline combining
+`superpowers` (idea formation + implementation discipline) with `spec-kit`
+(specify → plan → tasks → implement). This section mirrors the canonical version
+in [CLAUDE.md](CLAUDE.md); both agents follow the same pipeline. `.specify/` is
+shared and agent-agnostic; Claude skills live in `.claude/skills/speckit-*`,
+Codex skills in `.agents/skills/speckit-*`.
+
+### Pipeline
+
+```
+Feature request
+  ├─ [Complexity gate] complex/ambiguous → superpowers:brainstorming first
+  │                    simple/clear      → straight to /speckit-specify
+  ├─ ★ EXPLICIT handoff (never silent): ① /speckit-specify  ② refine design  ③ hold
+  ├─ /speckit-specify → /speckit-clarify (if needed) → /speckit-plan → /speckit-tasks
+  ├─ Offer /speckit-analyze (run on request)  ▶ SPEC PHASE DONE ◀
+  ├─ ★ COMMIT GATE 1 (recommend only): recommend committing specs/ artifacts
+  ├─ /speckit-implement + superpowers (TDD, subagent-driven, systematic-debugging,
+  │                                    verification-before-completion)
+  ├─ Verify: `npm run check` (lint + type + unit) must pass
+  └─ ★ COMMIT GATE 2 (recommend only): recommend committing the implementation
+```
+
+### Rules
+
+1. Commit gates are **recommend-only** — never auto-commit (Gate 1 or Gate 2).
+2. The brainstorming → spec-kit handoff is an **explicit user choice**; never
+   transition silently. Present ①②③ and wait.
+3. Brainstorming is **complexity-gated** — skip long Q&A for simple work, use it
+   for complex/ambiguous work. Record defaults as Assumptions; reserve
+   `[NEEDS CLARIFICATION]` for decisions that genuinely matter.
+4. spec-kit artifacts under `specs/` **are committed** at Gate 1 (the "no ad-hoc
+   planning markdown" norm targets scratch files, not `specs/`).
+5. Before recommending Gate 2, run `npm run check` and confirm it passes.
+6. Accept the `.specify/extensions.yml` agent-context refresh when offered.
+
+### Codex tool mapping
+
+- **Skills**: invoke with `$skill-name` or browse via `/skills`
+  (`$speckit-specify`, `$speckit-plan`, `$speckit-tasks`, `$speckit-analyze`,
+  `$speckit-implement`; superpowers via `$brainstorming`, etc.).
+- **Subagents** (subagent-driven-development): `spawn_agent` / `wait_agent` /
+  `close_agent`.
+- **Task tracking** (todos): `update_plan`.
+- superpowers runs in Codex via the global plugin (`multi_agent=true` in
+  `~/.codex/config.toml`).
+
+<!-- SPECKIT START -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
+<!-- SPECKIT END -->
